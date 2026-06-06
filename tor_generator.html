@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TOR (ว.159) — AI Generator</title>
+<style>
+  :root {
+    --bg: #111318; --surface: #1a1d24; --surface2: #22262f;
+    --border: #2e3340; --accent: #e53935; --accent2: #ff6659;
+    --text: #f0f2f5; --muted: #8b90a0;
+    --ai: #7b1fa2; --ai2: #ab47bc;
+    --green: #2e7d32; --yellow: #f9a825; --blue: #1565c0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sarabun','Segoe UI',sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* HEADER */
+  header { display:flex; align-items:center; justify-content:space-between; padding:14px 28px; border-bottom:1px solid var(--border); background:var(--surface); }
+  header h1 { font-size:1.5rem; font-weight:700; }
+  header h1 span { color:var(--accent); }
+  header p { font-size:0.75rem; color:var(--muted); margin-top:2px; }
+  .header-right { display:flex; align-items:center; gap:10px; }
+  .badge { font-size:0.7rem; background:#1b2a1b; color:#81c784; border:1px solid #2e7d32; border-radius:20px; padding:3px 10px; }
+
+  /* OLLAMA STATUS */
+  #ollama-status { display:flex; align-items:center; gap:7px; font-size:0.78rem; padding:5px 12px; border-radius:20px; border:1px solid var(--border); background:var(--surface2); cursor:pointer; }
+  #ollama-dot { width:8px; height:8px; border-radius:50%; background:var(--muted); flex-shrink:0; }
+  #ollama-dot.ok { background:#81c784; box-shadow:0 0 6px #81c784; }
+  #ollama-dot.err { background:#e57373; box-shadow:0 0 6px #e57373; }
+
+  /* TABS */
+  .tabs { display:flex; border-bottom:1px solid var(--border); padding:0 28px; background:var(--surface); }
+  .tab { padding:12px 18px; font-size:0.85rem; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; transition:all 0.2s; }
+  .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .tab:hover:not(.active) { color:var(--text); }
+
+  .main { max-width:900px; margin:32px auto; padding:0 20px; }
+  .page { display:none; } .page.active { display:block; }
+
+  /* CARD */
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:28px; margin-bottom:20px; }
+  .card-title { font-size:1.35rem; font-weight:700; margin-bottom:6px; }
+  .card-sub { color:var(--muted); font-size:0.85rem; margin-bottom:24px; }
+
+  /* FORM */
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .form-group { display:flex; flex-direction:column; gap:6px; }
+  .form-group.full { grid-column:1/-1; }
+  label { font-size:0.82rem; color:var(--muted); }
+  input[type="text"],input[type="number"],select,textarea {
+    background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+    color:var(--text); padding:10px 14px; font-size:0.95rem; font-family:inherit;
+    outline:none; transition:border-color 0.2s; width:100%;
+  }
+  input:focus,select:focus,textarea:focus { border-color:var(--accent); }
+  textarea { resize:vertical; }
+  select option { background:var(--surface2); }
+
+  /* AI DESCRIBE BOX */
+  .ai-describe-box {
+    background: linear-gradient(135deg,#1a0d2e,#1e1333);
+    border:1px solid #4a1070;
+    border-radius:10px;
+    padding:18px;
+    margin-bottom:22px;
+  }
+  .ai-describe-label {
+    display:flex; align-items:center; gap:8px;
+    font-size:0.9rem; font-weight:600; color:#ce93d8; margin-bottom:10px;
+  }
+  .ai-describe-label span.icon { font-size:1.1rem; }
+
+  .budget-row { display:flex; }
+  .budget-row input { border-radius:8px 0 0 8px; flex:1; }
+  .budget-btn { background:var(--surface2); border:1px solid var(--border); border-left:none; color:var(--text); padding:10px 14px; cursor:pointer; font-size:1rem; transition:background 0.2s; }
+  .budget-btn:last-child { border-radius:0 8px 8px 0; }
+  .budget-btn:hover { background:var(--border); }
+
+  .radio-group { display:flex; flex-direction:column; gap:8px; }
+  .radio-option { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.9rem; }
+  .radio-option input[type="radio"] { accent-color:var(--accent); }
+
+  /* BUTTONS */
+  .btn-primary { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:12px 24px; font-size:0.95rem; font-family:inherit; font-weight:600; cursor:pointer; transition:background 0.2s,transform 0.1s; margin-top:22px; }
+  .btn-primary:hover { background:var(--accent2); }
+  .btn-primary:disabled { background:#555; cursor:not-allowed; }
+  .btn-outline { background:transparent; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 16px; font-size:0.85rem; font-family:inherit; cursor:pointer; transition:background 0.2s; }
+  .btn-outline:hover { background:var(--surface2); }
+
+  .btn-ai {
+    background:linear-gradient(135deg,#6a0dad,#9c27b0);
+    color:#fff; border:none; border-radius:6px;
+    padding:5px 12px; font-size:0.78rem; font-family:inherit;
+    cursor:pointer; transition:opacity 0.2s; white-space:nowrap;
+    display:inline-flex; align-items:center; gap:5px;
+  }
+  .btn-ai:hover { opacity:0.85; }
+  .btn-ai:disabled { background:#444; cursor:not-allowed; opacity:0.6; }
+  .btn-ai.streaming { background:linear-gradient(135deg,#4a0070,#7b1fa2); animation:pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+  /* RESULT */
+  #result { display:none; }
+  .result-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:10px; }
+  .result-title { font-size:1.1rem; font-weight:600; }
+  .result-meta { font-size:0.8rem; color:var(--muted); margin-top:2px; }
+
+  .summary-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
+  .summary-chip { padding:6px 14px; border-radius:20px; font-size:0.8rem; font-weight:600; }
+  .chip-green { background:#1b3320; color:#81c784; border:1px solid #2e7d32; }
+  .chip-blue  { background:#1e2a3a; color:#64b5f6; border:1px solid #1565c0; }
+  .chip-gray  { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+  .chip-ai    { background:#1a0d2e; color:#ce93d8; border:1px solid #6a1b9a; }
+
+  /* TOR SECTIONS */
+  .tor-section { background:var(--surface); border:1px solid var(--border); border-radius:10px; margin-bottom:12px; overflow:hidden; }
+  .tor-section-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; cursor:pointer; transition:background 0.15s; user-select:none; }
+  .tor-section-header:hover { background:var(--surface2); }
+  .tor-section-title { display:flex; align-items:center; gap:10px; font-weight:600; font-size:0.95rem; }
+  .section-num { background:var(--accent); color:#fff; border-radius:6px; width:26px; height:26px; display:flex; align-items:center; justify-content:center; font-size:0.78rem; font-weight:700; flex-shrink:0; }
+  .section-right { display:flex; align-items:center; gap:8px; }
+  .section-status { font-size:0.72rem; padding:3px 9px; border-radius:12px; }
+  .status-done { background:#1b3320; color:#81c784; }
+  .status-fill { background:#2a2000; color:#ffcc02; }
+  .status-ai   { background:#1a0d2e; color:#ce93d8; }
+  .chevron { transition:transform 0.25s; font-size:1rem; color:var(--muted); }
+  .tor-section-header.open .chevron { transform:rotate(180deg); }
+
+  .tor-section-body { padding:0 18px; max-height:0; overflow:hidden; transition:max-height 0.3s ease,padding 0.2s; }
+  .tor-section-body.open { max-height:800px; padding:6px 18px 18px; }
+
+  .section-textarea-wrap { position:relative; margin-top:8px; }
+  .section-textarea-wrap textarea { min-height:110px; background:var(--surface2); padding-right:100px; }
+  .btn-ai-inline { position:absolute; top:8px; right:8px; }
+
+  .ai-thinking { font-size:0.75rem; color:#ce93d8; margin-top:5px; min-height:18px; font-style:italic; }
+
+  .btn-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:20px; }
+
+  /* LOADING */
+  .loading { display:flex; flex-direction:column; align-items:center; gap:14px; padding:48px; color:var(--muted); }
+  .spinner { width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  /* SETUP PANEL */
+  .setup-panel { background:#1a0d0d; border:1px solid #7f1515; border-radius:10px; padding:18px; margin-bottom:20px; display:none; }
+  .setup-panel.show { display:block; }
+  .setup-title { color:#ef9a9a; font-weight:600; margin-bottom:10px; font-size:0.9rem; }
+  .setup-steps { color:#ffcdd2; font-size:0.82rem; line-height:2; }
+  code { background:#2a0f0f; padding:2px 7px; border-radius:4px; font-family:monospace; font-size:0.85rem; color:#f48fb1; }
+
+  .footer-note { background:#1e2a1e; border:1px solid #2e5020; border-radius:8px; padding:12px 16px; font-size:0.8rem; color:#a5d6a7; margin-top:20px; line-height:1.6; }
+
+  /* INFO TABLE */
+  .info-table { width:100%; border-collapse:collapse; font-size:0.9rem; }
+  .info-table th { padding:10px; text-align:left; border-bottom:1px solid var(--border); background:var(--surface2); }
+  .info-table td { padding:10px; border-bottom:1px solid var(--border); }
+
+  @media(max-width:600px){ .form-grid{grid-template-columns:1fr} .main{padding:0 12px} }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>TOR <span>(ว.159)</span></h1>
+    <p>แอปพลิเคชันทำงานแบบ Local 100% ปลอดภัยต่อข้อมูลความลับจัดซื้อจัดจ้างภาครัฐ</p>
+  </div>
+  <div class="header-right">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <input id="backend-input"
+        style="background:#22262f;border:1px solid #2e3340;border-radius:6px;color:#f0f2f5;
+               padding:6px 10px;font-size:0.8rem;width:240px;outline:none;"
+        placeholder="http://localhost:8000"
+        title="URL ของ Python backend"
+        onkeydown="if(event.key==='Enter'){setBackendURL(this.value);checkOllama();}" />
+      <button onclick="setBackendURL(document.getElementById('backend-input').value);checkOllama();"
+        style="background:#e53935;border:none;border-radius:6px;color:#fff;padding:6px 12px;
+               font-size:0.8rem;cursor:pointer;">เชื่อม</button>
+    </div>
+    <div id="ollama-status" onclick="checkOllama()" title="คลิกเพื่อตรวจสอบ">
+      <span id="ollama-dot"></span>
+      <span id="ollama-text">ตรวจสอบ Ollama...</span>
+    </div>
+    <span class="badge">🔒 Local Only</span>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('gen')">📝 เจนโครงร่าง 10 หัวข้อ (ว.159)</div>
+  <div class="tab" onclick="switchTab('setup')">⚙️ ตั้งค่า Ollama</div>
+  <div class="tab" onclick="switchTab('info')">📋 ข้อมูล ว.159</div>
+</div>
+
+<div class="main">
+
+<!-- ══ PAGE: GENERATOR ══ -->
+<div id="page-gen" class="page active">
+
+  <!-- SETUP WARNING -->
+  <div id="setup-warn" class="setup-panel">
+    <div class="setup-title">⚠️ ไม่พบ Ollama — ฟีเจอร์ AI ช่วยเขียนยังใช้ไม่ได้</div>
+    <div class="setup-steps">
+      ยังสามารถใช้งานส่วน Generate โครงร่างได้ตามปกติ หากต้องการใช้ AI ช่วยเขียนแต่ละข้อ กรุณาไปที่แท็บ <strong>⚙️ ตั้งค่า Ollama</strong>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📄 เครื่องมือสร้างโครงร่าง TOR ตามหนังสือ ว.159</div>
+    <div class="card-sub">กรอกข้อมูลโครงการ แล้วกด "สร้างโครงร่าง TOR" จากนั้นสามารถกด ✨ AI ช่วย ในแต่ละข้อได้เลย</div>
+
+    <!-- AI DESCRIBE BOX -->
+    <div class="ai-describe-box">
+      <div class="ai-describe-label">
+        <span class="icon">✨</span>
+        อธิบายโครงการให้ AI ช่วยเขียน (เพิ่มรายละเอียดยิ่งได้ผลดี)
+      </div>
+      <textarea id="ai-project-desc" rows="3" placeholder="เช่น: ต้องการจัดซื้อคอมพิวเตอร์สำหรับทำงานเอกสารทั่วไป เช่น พิมพ์รายงาน ใช้โปรแกรม Office จำนวน 10 เครื่อง สำหรับพนักงานฝ่ายธุรการ ต้องการความน่าเชื่อถือสูง ใช้งานได้นาน 5 ปี"></textarea>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>ชื่อโครงการ / งานจัดซื้อจัดจ้าง *</label>
+        <input type="text" id="project-name" placeholder="เช่น จัดซื้อคอมพิวเตอร์ หรือ จ้างสำรวจพื้นที่" />
+      </div>
+      <div class="form-group">
+        <label>ประเภทงาน *</label>
+        <select id="project-type">
+          <option value="ซื้อ">ซื้อ/จ้างทั่วไป</option>
+          <option value="จ้างที่ปรึกษา">จ้างที่ปรึกษา</option>
+          <option value="จ้างออกแบบ">จ้างออกแบบหรือควบคุมงานก่อสร้าง</option>
+          <option value="จ้างก่อสร้าง">จ้างก่อสร้าง</option>
+          <option value="จ้างสำรวจ">จ้างสำรวจ/ศึกษา/วิจัย</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>หน่วยงาน / ส่วนราชการ</label>
+        <input type="text" id="agency" placeholder="เช่น กรมชลประทาน" />
+      </div>
+      <div class="form-group">
+        <label>วงเงินงบประมาณ (บาท) *</label>
+        <div class="budget-row">
+          <input type="number" id="budget" placeholder="600000" min="0" step="1000"/>
+          <button class="budget-btn" onclick="adjustBudget(-1000)">−</button>
+          <button class="budget-btn" onclick="adjustBudget(1000)">+</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>ระยะเวลาดำเนินการ (วัน)</label>
+        <input type="number" id="duration" placeholder="90" min="1"/>
+      </div>
+      <div class="form-group">
+        <label>หลักเกณฑ์คัดเลือกข้อเสนอ</label>
+        <div class="radio-group">
+          <label class="radio-option"><input type="radio" name="criteria" value="ราคา" checked> เกณฑ์ราคา</label>
+          <label class="radio-option"><input type="radio" name="criteria" value="ราคาประกอบเกณฑ์อื่น"> เกณฑ์ราคาประกอบเกณฑ์อื่น</label>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="generateTOR()">⚡ สร้างโครงร่าง TOR</button>
+  </div>
+
+  <div id="loading" style="display:none;">
+    <div class="loading"><div class="spinner"></div><div>กำลังสร้างโครงร่าง TOR...</div></div>
+  </div>
+
+  <!-- RESULT -->
+  <div id="result">
+    <div class="result-header">
+      <div>
+        <div class="result-title" id="result-title">ผลลัพธ์</div>
+        <div class="result-meta" id="result-meta"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn-ai" id="btn-ai-all" onclick="generateAllWithAI()" disabled>✨ AI เขียนทุกข้อ</button>
+        <button class="btn-outline" onclick="copyAll()">📋 คัดลอก</button>
+        <button class="btn-outline" onclick="downloadTXT()">⬇️ .txt</button>
+      </div>
+    </div>
+
+    <div class="summary-row">
+      <span class="summary-chip chip-green">✅ 10/10 หัวข้อครบตาม ว.159</span>
+      <span class="summary-chip chip-blue" id="budget-chip">💰 —</span>
+      <span class="summary-chip chip-gray" id="type-chip">📁 —</span>
+      <span class="summary-chip chip-ai" id="ai-chip" style="display:none">✨ Typhoon2 พร้อม</span>
+    </div>
+
+    <div id="sections-container"></div>
+
+    <div class="footer-note">
+      ⚠️ <strong>หมายเหตุ:</strong> โครงร่างนี้เป็นแนวทางเบื้องต้นเท่านั้น เจ้าหน้าที่ผู้รับผิดชอบต้องพิจารณา ตรวจสอบ และแก้ไขให้ถูกต้องครบถ้วนตามบริบทโครงการจริงก่อนนำไปใช้งาน
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAGE: SETUP ══ -->
+<div id="page-setup" class="page">
+  <div class="card">
+    <div class="card-title">⚙️ ติดตั้งและตั้งค่า Ollama + Typhoon2</div>
+    <div class="card-sub">ทำครั้งเดียว จากนั้นใช้งานได้ตลอด ไม่มีข้อมูลออกนอกเครื่อง</div>
+
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <div style="background:var(--surface2);border-radius:8px;padding:16px;">
+        <div style="font-weight:600;margin-bottom:10px;">ขั้นตอนที่ 1 — ติดตั้ง dependencies</div>
+        <div style="font-size:0.85rem;color:var(--muted);line-height:2;">
+          เปิด Command Prompt แล้วรัน:<br>
+          <code>pip install fastapi uvicorn openai</code>
+        </div>
+      </div>
+
+      <div style="background:var(--surface2);border-radius:8px;padding:16px;">
+        <div style="font-weight:600;margin-bottom:10px;">ขั้นตอนที่ 2 — รับ API Key ฟรี</div>
+        <div style="font-size:0.85rem;color:var(--muted);line-height:2;">
+          สมัครที่ <a href="https://opentyphoon.ai" target="_blank" style="color:#64b5f6;">https://opentyphoon.ai</a> → API Keys → Create<br>
+          copy key ที่ได้ (ขึ้นต้นด้วย <code>sk-</code>)
+        </div>
+      </div>
+
+      <div style="background:var(--surface2);border-radius:8px;padding:16px;">
+        <div style="font-weight:600;margin-bottom:10px;">ขั้นตอนที่ 3 — รัน Backend</div>
+        <div style="font-size:0.85rem;color:var(--muted);line-height:2;">
+          เปิด Command Prompt แล้วรัน:<br>
+          <code>set TYPHOON_API_KEY=sk-xxxx</code><br>
+          <code>python D:\TOR_AI\Program\backend.py</code><br>
+          จะเห็น: <em>🚀 TOR AI Backend รันที่ http://localhost:8000</em>
+        </div>
+      </div>
+
+      <div style="background:var(--surface2);border-radius:8px;padding:16px;">
+        <div style="font-weight:600;margin-bottom:10px;">ขั้นตอนที่ 4 — ทดสอบ</div>
+        <div style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">ตรวจสอบว่า backend รันอยู่และ API key ถูกต้อง</div>
+        <button class="btn-primary" style="margin-top:0;" onclick="checkOllama()">🔄 ตรวจสอบการเชื่อมต่อ</button>
+        <div id="setup-test-result" style="margin-top:12px;font-size:0.85rem;"></div>
+      </div>
+
+      <div style="background:var(--surface2);border-radius:8px;padding:16px;">
+        <div style="font-weight:600;margin-bottom:8px;">ข้อมูล Model</div>
+        <table style="font-size:0.82rem;color:var(--muted);line-height:2;width:100%;">
+          <tr><td style="width:180px;">Model</td><td>typhoon-v2-8b-instruct</td></tr>
+          <tr><td>Provider</td><td>OpenTyphoon (SCB10X)</td></tr>
+          <tr><td>RAM</td><td>ไม่ต้องการ — รันบน cloud</td></tr>
+          <tr><td>ภาษา</td><td>ไทย + อังกฤษ</td></tr>
+          <tr><td>ค่าใช้จ่าย</td><td>ฟรี (free tier)</td></tr>
+          <tr><td>Backend docs</td><td><a href="http://localhost:8000/docs" target="_blank" style="color:#64b5f6;">http://localhost:8000/docs</a></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAGE: INFO ══ -->
+<div id="page-info" class="page">
+  <div class="card">
+    <div class="card-title">📋 หนังสือเวียน กค (กวจ) 0405.4/ว 159</div>
+    <div class="card-sub">ลงวันที่ 20 มีนาคม 2566 — กำหนดมาตรฐานหัวข้อในร่างขอบเขตของงาน (ToR)</div>
+    <table class="info-table">
+      <thead><tr><th style="width:50px;">ข้อ</th><th>หัวข้อมาตรฐาน</th><th>หมายเหตุ</th></tr></thead>
+      <tbody id="info-table"></tbody>
+    </table>
+  </div>
+</div>
+
+</div><!-- end .main -->
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+let ollamaReady = false;
+
+// ── Backend URL (FastAPI) ──
+function getBackendURL() {
+  return (localStorage.getItem('backend_url') || 'http://localhost:8000').replace(/\/$/, '');
+}
+function setBackendURL(url) {
+  localStorage.setItem('backend_url', url.trim().replace(/\/$/, ''));
+}
+
+const TOR_SECTIONS = [
+  { num:1, title:'ความเป็นมา / หลักการและเหตุผล',           note:'บังคับ' },
+  { num:2, title:'วัตถุประสงค์',                              note:'บังคับ' },
+  { num:3, title:'คุณสมบัติของผู้เสนอราคา / ผู้รับจ้าง',     note:'บังคับ' },
+  { num:4, title:'คุณลักษณะเฉพาะของพัสดุ / ขอบเขตของงาน',   note:'บังคับ — ต้องไม่ระบุยี่ห้อ/ล็อคสเปค' },
+  { num:5, title:'ระยะเวลาดำเนินการ',                         note:'บังคับ' },
+  { num:6, title:'สถานที่ดำเนินการ / ส่งมอบ',                note:'บังคับ' },
+  { num:7, title:'วงเงินงบประมาณ',                            note:'บังคับ' },
+  { num:8, title:'การส่งมอบงาน / เงื่อนไขการตรวจรับ',        note:'บังคับ' },
+  { num:9, title:'การรับประกันคุณภาพ / ความรับผิดชอบ',        note:'บังคับ' },
+  { num:10,title:'เงื่อนไขอื่น ๆ',                            note:'บังคับ (ระบุ "ไม่มี" ได้หากไม่มีเพิ่มเติม)' },
+];
+
+// System prompt per section
+const SECTION_PROMPTS = [
+  // 1 background
+  (ctx) => `คุณคือผู้เชี่ยวชาญเขียนร่างขอบเขตของงาน (TOR) สำหรับการจัดซื้อจัดจ้างภาครัฐไทย ตามมาตรฐาน ว.159
+เขียนเฉพาะ "ข้อ 1 ความเป็นมา/หลักการและเหตุผล" สำหรับโครงการ: ${ctx.name}
+หน่วยงาน: ${ctx.agency} | ประเภท: ${ctx.type} | วงเงิน: ${ctx.budgetFmt} บาท
+รายละเอียดจากผู้ใช้: ${ctx.desc}
+ตอบเป็นภาษาทางราชการไทย ไม่เกิน 5 ประโยค ไม่ต้องมีหัวข้อนำ ตอบเฉพาะเนื้อหาเลย`,
+
+  // 2 objectives
+  (ctx) => `คุณคือผู้เชี่ยวชาญเขียน TOR ภาครัฐไทย ตาม ว.159
+เขียนเฉพาะ "ข้อ 2 วัตถุประสงค์" สำหรับโครงการ: ${ctx.name}
+หน่วยงาน: ${ctx.agency} | รายละเอียด: ${ctx.desc}
+เขียนเป็นข้อ ๆ 2-4 ข้อ ใช้ภาษาทางการ ไม่ต้องมีหัวข้อนำ ตอบเฉพาะเนื้อหา`,
+
+  // 3 qualifications
+  (ctx) => `คุณคือผู้เชี่ยวชาญเขียน TOR ภาครัฐไทย ตาม ว.159
+เขียนเฉพาะ "ข้อ 3 คุณสมบัติของผู้เสนอราคา" สำหรับโครงการ: ${ctx.name} (${ctx.type})
+วงเงิน: ${ctx.budgetFmt} บาท | รายละเอียด: ${ctx.desc}
+เขียนเป็นข้อ ๆ ไม่เกิน 5 ข้อ ครอบคลุมเรื่อง: ใบอนุญาต, ผู้ทิ้งงาน, ผลประโยชน์ร่วม
+ใช้ภาษาทางการ ไม่ต้องมีหัวข้อนำ ตอบเฉพาะเนื้อหา`,
+
+  // 4 specifications — KEY SECTION
+  (ctx) => `คุณคือผู้เชี่ยวชาญ TOR ภาครัฐไทย ตาม ว.159
+เขียนเฉพาะ "ข้อ 4 คุณลักษณะเฉพาะของพัสดุ" สำหรับ: ${ctx.name}
+รายละเอียดจากผู้ใช้: ${ctx.desc}
+
+กฎสำคัญที่ต้องปฏิบัติ:
+- ห้ามระบุยี่ห้อ รุ่น หรือ Part No. เด็ดขาด
+- เขียนเป็น Functional/Performance Specification (สมรรถนะเชิงหน้าที่)
+- ใช้ตัวเลขสมรรถนะที่เป็นมาตรฐานอุตสาหกรรม ไม่ใช่ตัวเลขที่ชี้ยี่ห้อเดียว
+- ระบุหน่วยนับและจำนวนให้ชัดเจน
+
+เขียนเป็นรายการ bullet ชัดเจน ภาษาทางการ ไม่ต้องมีหัวข้อนำ`,
+
+  // 5 timeline
+  (ctx) => `คุณคือผู้เชี่ยวชาญ TOR ภาครัฐไทย
+เขียน "ข้อ 5 ระยะเวลาดำเนินการ" สำหรับ: ${ctx.name}
+ระยะเวลา: ${ctx.days} วัน | รายละเอียด: ${ctx.desc}
+ระบุจุดเริ่มต้น ระยะเวลา และ milestone หลัก (ถ้ามี) ภาษาทางการ ไม่เกิน 3 ประโยค`,
+
+  // 6 location
+  (ctx) => `คุณคือผู้เชี่ยวชาญ TOR ภาครัฐไทย
+เขียน "ข้อ 6 สถานที่ดำเนินการ" สำหรับ: ${ctx.name}
+หน่วยงาน: ${ctx.agency} | รายละเอียด: ${ctx.desc}
+ระบุสถานที่และเงื่อนไขการส่งมอบ ภาษาทางการ สั้นกระชับ`,
+
+  // 7 budget
+  (ctx) => `คุณคือผู้เชี่ยวชาญ TOR ภาครัฐไทย
+เขียน "ข้อ 7 วงเงินงบประมาณ" สำหรับ: ${ctx.name}
+วงเงิน: ${ctx.budgetFmt} บาท (${ctx.budgetText}) | เกณฑ์: ${ctx.criteria}
+เขียนระบุวงเงินงบประมาณและหลักเกณฑ์การพิจารณา ภาษาทางการ`,
+
+  // 8 delivery
+  (ctx) => `คุณคือผู้เชี่ยวชาญ TOR ภาครัฐไทย
+เขียน "ข้อ 8 การส่งมอบงาน/เงื่อนไขการตรวจรับ" สำหรับ: ${ctx.name} (${ctx.type})
+ระยะเวลา: ${ctx.days} วัน | รายละเอียด: ${ctx.desc}
+ระบุขั้นตอน วิธี และเงื่อนไขการตรวจรับ เขียนเป็นข้อ ๆ ภาษาทางการ`,
+
+  // 9 warranty
+  (ctx) => `คุณคือผู้เชี่ยวชาญ TOR ภาครัฐไทย
+เขียน "ข้อ 9 การรับประกันคุณภาพ" สำหรับ: ${ctx.name} (${ctx.type})
+รายละเอียด: ${ctx.desc}
+ระบุระยะเวลาและเงื่อนไขการรับประกัน ตามมาตรฐานงานประเภทนี้ ภาษาทางการ`,
+
+  // 10 other conditions
+  (ctx) => `คุณคือผู้เชี่ยวชาญ TOR ภาครัฐไทย
+เขียน "ข้อ 10 เงื่อนไขอื่น ๆ" สำหรับ: ${ctx.name}
+วงเงิน: ${ctx.budgetFmt} บาท | เกณฑ์: ${ctx.criteria} | รายละเอียด: ${ctx.desc}
+ระบุเงื่อนไขเพิ่มเติมที่จำเป็น เช่น เอกสาร สิทธิ์ยกเลิก ฯลฯ ภาษาทางการ`,
+];
+
+// ══════════════════════════════════════════
+// OLLAMA
+// ══════════════════════════════════════════
+async function checkOllama() {
+  const dot  = document.getElementById('ollama-dot');
+  const txt  = document.getElementById('ollama-text');
+  const warn = document.getElementById('setup-warn');
+  const chip = document.getElementById('ai-chip');
+  const allBtn = document.getElementById('btn-ai-all');
+  dot.className = ''; txt.textContent = 'กำลังตรวจสอบ...';
+  try {
+    const r = await fetch(`${getBackendURL()}/api/health`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    const data = await r.json();
+    ollamaReady = data.status === 'ok';
+    dot.className = 'ok';
+    txt.textContent = `Typhoon2 พร้อม (OpenTyphoon)`;
+    warn.classList.remove('show');
+    chip.style.display = 'inline-flex';
+    allBtn.disabled = false;
+    document.querySelectorAll('.btn-ai-section').forEach(b => b.disabled = false);
+    const testEl = document.getElementById('setup-test-result');
+    if (testEl) testEl.innerHTML =
+      `<span style="color:#81c784">✅ Backend เชื่อมต่อสำเร็จ — Typhoon2 (OpenTyphoon) พร้อมใช้งาน</span>`;
+  } catch(e) {
+    ollamaReady = false;
+    dot.className = 'err';
+    txt.textContent = 'Ollama ไม่ได้รัน';
+    warn.classList.add('show');
+    const testEl = document.getElementById('setup-test-result');
+    if (testEl) testEl.innerHTML = `<span style="color:#ef9a9a">❌ ไม่พบ Ollama — กรุณาติดตั้งตามขั้นตอนข้างต้น</span>`;
+  }
+}
+
+async function streamOllama(prompt, onToken, onDone) {
+  const resp = await fetch(`${getBackendURL()}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, stream: true }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    onDone('');
+    throw new Error(`HTTP ${resp.status}: ${err}`);
+  }
+
+  const reader = resp.body.getReader();
+  const dec = new TextDecoder();
+  let full = '';
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      // stream จบ — เรียก onDone ไม่ว่าจะมี j.done หรือไม่
+      onDone(full);
+      break;
+    }
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop(); // บรรทัดสุดท้ายอาจยังไม่สมบูรณ์
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const j = JSON.parse(line);
+        if (j.error) throw new Error(j.error);
+        if (j.response) { full += j.response; onToken(j.response, full); }
+      } catch(e) {
+        if (e.message !== 'Unexpected end of JSON input') console.warn('parse:', e.message);
+      }
+    }
+  }
+}
+
+// ══════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════
+function switchTab(t) {
+  const tabs = ['gen','setup','info'];
+  tabs.forEach((id,i) => {
+    document.querySelectorAll('.tab')[i].classList.toggle('active', id===t);
+    document.getElementById('page-'+id).classList.toggle('active', id===t);
+  });
+}
+
+function adjustBudget(d) {
+  const el = document.getElementById('budget');
+  el.value = Math.max(0, (parseFloat(el.value)||0)+d);
+}
+
+function bahtText(n) {
+  const ones=['','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'];
+  const t=['','สิบ','ยี่สิบ','สามสิบ','สี่สิบ','ห้าสิบ','หกสิบ','เจ็ดสิบ','แปดสิบ','เก้าสิบ'];
+  const map={500:'ห้าร้อย',1000:'หนึ่งพัน',2000:'สองพัน',3000:'สามพัน',4000:'สี่พัน',5000:'ห้าพัน',
+    10000:'หนึ่งหมื่น',20000:'สองหมื่น',50000:'ห้าหมื่น',100000:'หนึ่งแสน',
+    200000:'สองแสน',300000:'สามแสน',400000:'สี่แสน',500000:'ห้าแสน',600000:'หกแสน',
+    700000:'เจ็ดแสน',800000:'แปดแสน',900000:'เก้าแสน',1000000:'หนึ่งล้าน',
+    2000000:'สองล้าน',5000000:'ห้าล้าน',10000000:'สิบล้าน'};
+  if(map[n]) return map[n]+'บาทถ้วน';
+  function c(x){
+    if(!x)return'';
+    if(x<10)return ones[x];
+    if(x<100)return t[Math.floor(x/10)]+(x%10?ones[x%10]:'');
+    return ones[Math.floor(x/100)]+'ร้อย'+c(x%100);
+  }
+  let s='', tmp=n, u=0;
+  while(tmp>0){const d=tmp%10000;if(d){let p='';
+    if(d>=1000)p+=ones[Math.floor(d/1000)]+'พัน';
+    if((d%1000)>=100)p+=ones[Math.floor((d%1000)/100)]+'ร้อย';
+    const r=d%100;if(r>=10)p+=t[Math.floor(r/10)];if(r%10)p+=ones[r%10];
+    s=p+(u?'ล้าน'.repeat(u):'')+s;}tmp=Math.floor(tmp/10000);u++;}
+  return (s||c(n))+'บาทถ้วน';
+}
+
+function fmtBudget(v){ return new Intl.NumberFormat('th-TH').format(v); }
+
+function getContext() {
+  return {
+    name:      document.getElementById('project-name').value.trim(),
+    type:      document.getElementById('project-type').value,
+    agency:    document.getElementById('agency').value.trim() || 'หน่วยงาน',
+    budget:    parseFloat(document.getElementById('budget').value)||0,
+    budgetFmt: fmtBudget(parseFloat(document.getElementById('budget').value)||0),
+    budgetText:bahtText(parseFloat(document.getElementById('budget').value)||0),
+    days:      parseInt(document.getElementById('duration').value)||90,
+    criteria:  document.querySelector('input[name="criteria"]:checked').value,
+    desc:      document.getElementById('ai-project-desc').value.trim() || '(ไม่ได้ระบุรายละเอียดเพิ่มเติม)',
+  };
+}
+
+// ══════════════════════════════════════════
+// GENERATE TEMPLATE
+// ══════════════════════════════════════════
+function generateTOR() {
+  const ctx = getContext();
+  if (!ctx.name) { alert('กรุณากรอกชื่อโครงการ'); return; }
+  if (!ctx.budget) { alert('กรุณากรอกวงเงินงบประมาณ'); return; }
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('result').style.display = 'none';
+  setTimeout(() => buildResult(ctx), 400);
+}
+
+const TEMPLATES = [
+  ctx => `${ctx.agency} มีความจำเป็นต้องดำเนินการ${ctx.type==='ซื้อ'?'จัดซื้อ':'จ้าง'}${ctx.name} เพื่อสนับสนุนภารกิจของหน่วยงานให้เป็นไปอย่างมีประสิทธิภาพ ตามอำนาจหน้าที่ที่ได้รับมอบหมาย\n\n${ctx.desc !== '(ไม่ได้ระบุรายละเอียดเพิ่มเติม)' ? 'บริบทโครงการ: '+ctx.desc : '[กรุณาระบุรายละเอียดเพิ่มเติม]'}`,
+  ctx => `1) เพื่อ${ctx.type==='ซื้อ'?'จัดหา':'ดำเนินการ'}${ctx.name}ให้แก่${ctx.agency}\n2) เพื่อเพิ่มประสิทธิภาพในการปฏิบัติงานของ${ctx.agency}\n3) เพื่อให้การดำเนินงานเป็นไปตามแผนงานที่กำหนด`,
+  ctx => `1) เป็นผู้มีอาชีพ${ctx.type==='ซื้อ'?'ขายพัสดุ':'รับจ้าง'}ที่ประกวดราคาครั้งนี้\n2) ไม่เป็นผู้ที่ถูกระบุชื่อไว้ในบัญชีรายชื่อผู้ทิ้งงานของทางราชการ\n3) ไม่เป็นผู้มีผลประโยชน์ร่วมกันกับผู้เสนอราคารายอื่น ณ วันประกาศ\n4) ไม่เป็นผู้ได้รับเอกสิทธิ์หรือความคุ้มกันซึ่งอาจปฏิเสธไม่ยอมขึ้นศาลไทย`,
+  ctx => `[กำหนดคุณลักษณะเฉพาะของ${ctx.name}ในเชิงสมรรถนะ (Functional Specification)]\n\n⚠️ กด "✨ AI ช่วย" เพื่อให้ Typhoon2 เขียนสเปคที่เหมาะสม หรือกรอกรายละเอียดเอง:\n- [คุณลักษณะที่ 1] ต้องมีสมรรถนะ...\n- [คุณลักษณะที่ 2] สามารถ...\n\nห้ามระบุยี่ห้อ รุ่น หรือ Part No. ต้องเป็น Functional Spec`,
+  ctx => `ผู้รับจ้าง/ผู้ขายต้องดำเนินการให้แล้วเสร็จภายใน ${ctx.days} วัน นับถัดจากวันลงนามในสัญญา`,
+  ctx => `ดำเนินการ ณ ${ctx.agency} หรือสถานที่ที่${ctx.agency}กำหนด`,
+  ctx => `วงเงินงบประมาณจำนวน ${ctx.budgetFmt} บาท (${ctx.budgetText})\nหลักเกณฑ์การพิจารณาคัดเลือก: ${ctx.criteria}`,
+  ctx => `ผู้${ctx.type==='ซื้อ'?'ขาย':'รับจ้าง'}ต้องส่งมอบงานให้ครบถ้วนภายในกำหนด ณ ${ctx.agency}\n\nการตรวจรับ:\n1) คณะกรรมการตรวจรับจะทำการตรวจรับภายใน [5] วันทำการ นับแต่วันที่ส่งมอบ\n2) กรณีพบข้อบกพร่อง ต้องแก้ไขภายใน [ระบุ] วัน`,
+  ctx => `ผู้${ctx.type==='ซื้อ'?'ขาย':'รับจ้าง'}ต้องรับประกัน${ctx.type==='ซื้อ'?'ความชำรุดบกพร่องของพัสดุ':'คุณภาพของงาน'}ที่ส่งมอบเป็นระยะเวลาไม่น้อยกว่า [ระบุ] ปี/เดือน โดยแก้ไขหรือเปลี่ยนทดแทนโดยไม่คิดค่าใช้จ่าย`,
+  ctx => `1) ผู้เสนอราคาต้องยื่นเอกสารหลักฐานให้ครบถ้วนตามที่กำหนด\n2) หลักเกณฑ์การพิจารณา: ${ctx.criteria}\n3) ${ctx.agency}ขอสงวนสิทธิ์ยกเลิกการจัดซื้อจัดจ้างหากราคาสูงกว่าวงเงินที่ได้รับจัดสรร\n4) [เงื่อนไขอื่น ๆ เพิ่มเติม หรือระบุ "ไม่มี"]`,
+];
+
+function buildResult(ctx) {
+  document.getElementById('result-title').textContent = `ผลลัพธ์ TOR: ${ctx.name}`;
+  document.getElementById('result-meta').textContent  = `สร้างเมื่อ ${new Date().toLocaleString('th-TH')} | ว.159`;
+  document.getElementById('budget-chip').textContent  = `💰 ${ctx.budgetFmt} บาท`;
+  document.getElementById('type-chip').textContent    = `📁 ${ctx.type}`;
+
+  const container = document.getElementById('sections-container');
+  container.innerHTML = '';
+
+  TOR_SECTIONS.forEach((sec, i) => {
+    const content   = TEMPLATES[i](ctx);
+    const needsFill = content.includes('[') || content.includes('⚠️');
+    const div = document.createElement('div');
+    div.className = 'tor-section';
+    div.id = `section-${i}`;
+    div.innerHTML = `
+      <div class="tor-section-header" onclick="toggleSection(this)">
+        <div class="tor-section-title">
+          <span class="section-num">${sec.num}</span>
+          ${sec.title}
+        </div>
+        <div class="section-right">
+          <span class="section-status ${needsFill?'status-fill':'status-done'}" id="status-${i}">
+            ${needsFill?'⚠️ ต้องกรอกเพิ่ม':'✅ พร้อมใช้'}
+          </span>
+          <span class="chevron">▾</span>
+        </div>
+      </div>
+      <div class="tor-section-body">
+        <div class="section-textarea-wrap">
+          <textarea id="ta-${i}" rows="5">${content}</textarea>
+          <button class="btn-ai btn-ai-section btn-ai-inline" id="btn-ai-${i}"
+            onclick="generateSection(${i})" ${ollamaReady?'':'disabled'}>
+            ✨ AI ช่วย
+          </button>
+        </div>
+        <div class="ai-thinking" id="think-${i}"></div>
+      </div>`;
+    container.appendChild(div);
+
+    // auto-open section 4 (index 3) since it's most important
+    if (i === 3) {
+      const header = div.querySelector('.tor-section-header');
+      const body   = div.querySelector('.tor-section-body');
+      header.classList.add('open');
+      body.classList.add('open');
+    }
+  });
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('result').style.display = 'block';
+  document.getElementById('result').scrollIntoView({ behavior:'smooth' });
+}
+
+// ══════════════════════════════════════════
+// AI PER SECTION
+// ══════════════════════════════════════════
+async function generateSection(i) {
+  if (!ollamaReady) { alert('Ollama ยังไม่พร้อม กรุณาตรวจสอบในแท็บ ⚙️'); return; }
+  const ctx     = getContext();
+  const btn     = document.getElementById(`btn-ai-${i}`);
+  const ta      = document.getElementById(`ta-${i}`);
+  const think   = document.getElementById(`think-${i}`);
+  const status  = document.getElementById(`status-${i}`);
+
+  btn.disabled = true;
+  btn.classList.add('streaming');
+  btn.textContent = '⏳ กำลังเขียน...';
+  think.textContent = 'Typhoon2 กำลังประมวลผล...';
+  ta.value = '';
+
+  // open section body
+  const body = ta.closest('.tor-section-body');
+  const header = body.previousElementSibling;
+  body.classList.add('open');
+  header.classList.add('open');
+
+  const prompt = SECTION_PROMPTS[i](ctx);
+
+  try {
+    await streamOllama(
+      prompt,
+      (token, full) => { ta.value = full; ta.scrollTop = ta.scrollHeight; },
+      (full) => {
+        think.textContent = '✅ เสร็จแล้ว';
+        setTimeout(() => think.textContent = '', 2000);
+        status.className = 'section-status status-ai';
+        status.textContent = '✨ AI เขียน';
+      }
+    );
+  } catch(e) {
+    ta.value = '[เกิดข้อผิดพลาด: ' + e.message + ']';
+    think.textContent = '❌ ล้มเหลว — ตรวจสอบว่า Ollama กำลังรันอยู่';
+  }
+
+  btn.disabled = false;
+  btn.classList.remove('streaming');
+  btn.innerHTML = '✨ AI ช่วย';
+}
+
+async function generateAllWithAI() {
+  if (!ollamaReady) { alert('Ollama ยังไม่พร้อม'); return; }
+  const btn = document.getElementById('btn-ai-all');
+  btn.disabled = true;
+  btn.textContent = '⏳ กำลังเขียนทีละข้อ...';
+  for (let i = 0; i < 10; i++) {
+    await generateSection(i);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '✨ AI เขียนทุกข้อ';
+}
+
+function toggleSection(header) {
+  header.classList.toggle('open');
+  header.nextElementSibling.classList.toggle('open');
+}
+
+// ══════════════════════════════════════════
+// EXPORT
+// ══════════════════════════════════════════
+function getAllContent() {
+  const title = document.getElementById('result-title').textContent;
+  let out = `${title}\n${'='.repeat(50)}\nอ้างอิง: กค (กวจ) 0405.4/ว 159 ลงวันที่ 20 มีนาคม 2566\n\n`;
+  TOR_SECTIONS.forEach((sec,i) => {
+    out += `ข้อ ${sec.num} ${sec.title}\n${'-'.repeat(40)}\n`;
+    out += (document.getElementById(`ta-${i}`)?.value||'') + '\n\n';
+  });
+  out += '\n⚠️ หมายเหตุ: โครงร่างนี้เป็นแนวทางเบื้องต้น เจ้าหน้าที่ผู้รับผิดชอบต้องตรวจสอบและแก้ไขก่อนนำไปใช้งาน';
+  return out;
+}
+function copyAll() {
+  navigator.clipboard.writeText(getAllContent())
+    .then(()=>alert('คัดลอกแล้ว!'))
+    .catch(()=>alert('ไม่สามารถคัดลอกได้'));
+}
+function downloadTXT() {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([getAllContent()],{type:'text/plain;charset=utf-8'}));
+  a.download = `TOR_${document.getElementById('project-name').value}_${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+}
+
+// ══════════════════════════════════════════
+// INFO TABLE
+// ══════════════════════════════════════════
+TOR_SECTIONS.forEach(s => {
+  document.getElementById('info-table').innerHTML += `<tr>
+    <td style="font-weight:700;color:var(--accent);">${s.num}</td>
+    <td>${s.title}</td>
+    <td style="font-size:0.8rem;color:var(--muted);">${s.note}</td></tr>`;
+});
+
+// AUTO-CHECK on load
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('backend_url');
+  if (saved) document.getElementById('backend-input').value = saved;
+  else document.getElementById('backend-input').value = 'http://localhost:8000';
+  setTimeout(checkOllama, 800);
+});
+</script>
+</body>
+</html>
