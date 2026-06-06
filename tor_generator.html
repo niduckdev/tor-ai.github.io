@@ -158,6 +158,19 @@
   .info-table td { padding:10px; border-bottom:1px solid var(--border); }
 
   @media(max-width:600px){ .form-grid{grid-template-columns:1fr} .main{padding:0 12px} }
+
+  /* MODE TOGGLE */
+  .mode-toggle { display:flex; gap:0; border-radius:10px; overflow:hidden; border:1px solid var(--border); margin-bottom:20px; }
+  .mode-btn { flex:1; padding:11px 16px; font-size:0.88rem; font-family:inherit; font-weight:600;
+    background:var(--surface2); color:var(--muted); border:none; cursor:pointer;
+    transition:background 0.2s,color 0.2s; display:flex; align-items:center; justify-content:center; gap:7px; }
+  .mode-btn.active { background:var(--accent); color:#fff; }
+  .mode-btn:not(.active):hover { background:var(--border); color:var(--text); }
+  .mode-separator { width:1px; background:var(--border); }
+
+  /* QUICK MODE budget mini-field */
+  .quick-extra { display:flex; gap:12px; margin-top:14px; flex-wrap:wrap; }
+  .quick-extra .form-group { flex:1; min-width:160px; }
 </style>
 </head>
 <body>
@@ -168,20 +181,10 @@
     <p>แอปพลิเคชันทำงานแบบ Local 100% ปลอดภัยต่อข้อมูลความลับจัดซื้อจัดจ้างภาครัฐ</p>
   </div>
   <div class="header-right">
-    <div style="display:flex;align-items:center;gap:6px;">
-      <input id="backend-input"
-        style="background:#22262f;border:1px solid #2e3340;border-radius:6px;color:#f0f2f5;
-               padding:6px 10px;font-size:0.8rem;width:240px;outline:none;"
-        placeholder="http://localhost:8000"
-        title="URL ของ Python backend"
-        onkeydown="if(event.key==='Enter'){setBackendURL(this.value);checkOllama();}" />
-      <button onclick="setBackendURL(document.getElementById('backend-input').value);checkOllama();"
-        style="background:#e53935;border:none;border-radius:6px;color:#fff;padding:6px 12px;
-               font-size:0.8rem;cursor:pointer;">เชื่อม</button>
-    </div>
+    <input id="backend-input" style="display:none;" />
     <div id="ollama-status" onclick="checkOllama()" title="คลิกเพื่อตรวจสอบ">
       <span id="ollama-dot"></span>
-      <span id="ollama-text">ตรวจสอบ Ollama...</span>
+      <span id="ollama-text">กำลังตรวจสอบ...</span>
     </div>
     <span class="badge">🔒 Local Only</span>
   </div>
@@ -189,7 +192,7 @@
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('gen')">📝 เจนโครงร่าง 10 หัวข้อ (ว.159)</div>
-  <div class="tab" onclick="switchTab('setup')">⚙️ ตั้งค่า Ollama</div>
+  <div class="tab" onclick="switchTab('setup')">⚙️ ตั้งค่า</div>
   <div class="tab" onclick="switchTab('info')">📋 ข้อมูล ว.159</div>
 </div>
 
@@ -200,25 +203,49 @@
 
   <!-- SETUP WARNING -->
   <div id="setup-warn" class="setup-panel">
-    <div class="setup-title">⚠️ ไม่พบ Ollama — ฟีเจอร์ AI ช่วยเขียนยังใช้ไม่ได้</div>
+    <div class="setup-title">⚠️ ยังไม่ได้เชื่อมต่อ Backend — ฟีเจอร์ AI ช่วยเขียนยังใช้ไม่ได้</div>
     <div class="setup-steps">
-      ยังสามารถใช้งานส่วน Generate โครงร่างได้ตามปกติ หากต้องการใช้ AI ช่วยเขียนแต่ละข้อ กรุณาไปที่แท็บ <strong>⚙️ ตั้งค่า Ollama</strong>
+      ยังสามารถใช้งานส่วน Generate โครงร่างได้ตามปกติ หากต้องการใช้ AI ช่วยเขียนแต่ละข้อ กรุณาไปที่แท็บ <strong>⚙️ ตั้งค่า</strong>
     </div>
   </div>
 
   <div class="card">
     <div class="card-title">📄 เครื่องมือสร้างโครงร่าง TOR ตามหนังสือ ว.159</div>
-    <div class="card-sub">กรอกข้อมูลโครงการ แล้วกด "สร้างโครงร่าง TOR" จากนั้นสามารถกด ✨ AI ช่วย ในแต่ละข้อได้เลย</div>
+    <div class="card-sub" id="card-sub-text">เลือกโหมดที่ต้องการด้านล่าง</div>
 
-    <!-- AI DESCRIBE BOX -->
+    <!-- MODE TOGGLE -->
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="mode-btn-quick" onclick="setMode('quick')">
+        ⚡ โหมดด่วน — บอก AI เลย
+      </button>
+      <div class="mode-separator"></div>
+      <button class="mode-btn" id="mode-btn-detail" onclick="setMode('detail')">
+        📋 โหมดละเอียด — กรอกฟอร์ม
+      </button>
+    </div>
+
+    <!-- AI DESCRIBE BOX (ทั้งสองโหมดใช้) -->
     <div class="ai-describe-box">
       <div class="ai-describe-label">
         <span class="icon">✨</span>
-        อธิบายโครงการให้ AI ช่วยเขียน (เพิ่มรายละเอียดยิ่งได้ผลดี)
+        <span id="ai-desc-label-text">อธิบายโครงการแล้วให้ AI สร้าง TOR ทั้ง 10 ข้อให้เลย</span>
       </div>
-      <textarea id="ai-project-desc" rows="3" placeholder="เช่น: ต้องการจัดซื้อคอมพิวเตอร์สำหรับทำงานเอกสารทั่วไป เช่น พิมพ์รายงาน ใช้โปรแกรม Office จำนวน 10 เครื่อง สำหรับพนักงานฝ่ายธุรการ ต้องการความน่าเชื่อถือสูง ใช้งานได้นาน 5 ปี"></textarea>
+      <textarea id="ai-project-desc" rows="4" placeholder="เช่น: ต้องการจัดซื้อคอมพิวเตอร์สำหรับทำงานเอกสารทั่วไป เช่น พิมพ์รายงาน ใช้โปรแกรม Office จำนวน 10 เครื่อง สำหรับพนักงานฝ่ายธุรการ ต้องการความน่าเชื่อถือสูง ใช้งานได้นาน 5 ปี งบประมาณ 500,000 บาท"></textarea>
+      <!-- Quick mode extra fields -->
+      <div class="quick-extra" id="quick-extra-fields">
+        <div class="form-group">
+          <label>ชื่อโครงการ (ย่อ) *</label>
+          <input type="text" id="quick-name" placeholder="เช่น จัดซื้อคอมพิวเตอร์ 10 เครื่อง" />
+        </div>
+        <div class="form-group">
+          <label>วงเงินงบประมาณ (บาท)</label>
+          <input type="number" id="quick-budget" placeholder="500000" min="0" step="1000"/>
+        </div>
+      </div>
     </div>
 
+    <!-- DETAIL MODE FIELDS -->
+    <div id="detail-fields">
     <div class="form-grid">
       <div class="form-group full">
         <label>ชื่อโครงการ / งานจัดซื้อจัดจ้าง *</label>
@@ -259,7 +286,9 @@
       </div>
     </div>
 
-    <button class="btn-primary" onclick="generateTOR()">⚡ สร้างโครงร่าง TOR</button>
+    </div><!-- end detail-fields -->
+
+    <button class="btn-primary" id="btn-generate" onclick="generateTOR()">⚡ สร้างโครงร่าง TOR</button>
   </div>
 
   <div id="loading" style="display:none;">
@@ -277,6 +306,7 @@
         <button class="btn-ai" id="btn-ai-all" onclick="generateAllWithAI()" disabled>✨ AI เขียนทุกข้อ</button>
         <button class="btn-outline" onclick="copyAll()">📋 คัดลอก</button>
         <button class="btn-outline" onclick="downloadTXT()">⬇️ .txt</button>
+        <button class="btn-outline" id="btn-export-docx" onclick="exportWord()" style="color:#64b5f6;border-color:#1565c0;">📄 Word</button>
       </div>
     </div>
 
@@ -298,8 +328,8 @@
 <!-- ══ PAGE: SETUP ══ -->
 <div id="page-setup" class="page">
   <div class="card">
-    <div class="card-title">⚙️ ติดตั้งและตั้งค่า Ollama + Typhoon2</div>
-    <div class="card-sub">ทำครั้งเดียว จากนั้นใช้งานได้ตลอด ไม่มีข้อมูลออกนอกเครื่อง</div>
+    <div class="card-title">⚙️ ติดตั้งและตั้งค่า Backend + OpenTyphoon</div>
+    <div class="card-sub">ทำครั้งเดียว จากนั้นใช้งานได้ตลอด</div>
 
     <div style="display:flex;flex-direction:column;gap:20px;">
 
@@ -370,10 +400,40 @@
 // CONFIG
 // ══════════════════════════════════════════
 let ollamaReady = false;
+let currentMode = 'quick'; // 'quick' | 'detail'
+
+function setMode(mode) {
+  currentMode = mode;
+  const quickBtn   = document.getElementById('mode-btn-quick');
+  const detailBtn  = document.getElementById('mode-btn-detail');
+  const detailFields = document.getElementById('detail-fields');
+  const quickExtra = document.getElementById('quick-extra-fields');
+  const labelText  = document.getElementById('ai-desc-label-text');
+  const cardSub    = document.getElementById('card-sub-text');
+  const genBtn     = document.getElementById('btn-generate');
+
+  if (mode === 'quick') {
+    quickBtn.classList.add('active');
+    detailBtn.classList.remove('active');
+    detailFields.style.display = 'none';
+    quickExtra.style.display = 'flex';
+    labelText.textContent = 'อธิบายโครงการแล้วให้ AI สร้าง TOR ทั้ง 10 ข้อให้เลย';
+    cardSub.textContent = '⚡ พิมพ์คำอธิบายโครงการ แล้วกดสร้าง — AI จะเขียน 10 ข้อให้อัตโนมัติ';
+    genBtn.innerHTML = '⚡ สร้าง TOR (AI เขียนทุกข้อ)';
+  } else {
+    detailBtn.classList.add('active');
+    quickBtn.classList.remove('active');
+    detailFields.style.display = 'block';
+    quickExtra.style.display = 'none';
+    labelText.textContent = 'อธิบายโครงการให้ AI ช่วยเขียน (เพิ่มรายละเอียดยิ่งได้ผลดี)';
+    cardSub.textContent = 'กรอกข้อมูลโครงการ แล้วกด "สร้างโครงร่าง TOR" จากนั้นกด ✨ AI ช่วย ในแต่ละข้อได้เลย';
+    genBtn.innerHTML = '⚡ สร้างโครงร่าง TOR';
+  }
+}
 
 // ── Backend URL (FastAPI) ──
 function getBackendURL() {
-  return (localStorage.getItem('backend_url') || 'http://localhost:8000').replace(/\/$/, '');
+  return (localStorage.getItem('backend_url') || window.location.origin).replace(/\/$/, '');
 }
 function setBackendURL(url) {
   localStorage.setItem('backend_url', url.trim().replace(/\/$/, ''));
@@ -405,7 +465,7 @@ const SECTION_PROMPTS = [
   (ctx) => `คุณคือผู้เชี่ยวชาญเขียน TOR ภาครัฐไทย ตาม ว.159
 เขียนเฉพาะ "ข้อ 2 วัตถุประสงค์" สำหรับโครงการ: ${ctx.name}
 หน่วยงาน: ${ctx.agency} | รายละเอียด: ${ctx.desc}
-เขียนเป็นข้อ ๆ 2-4 ข้อ ใช้ภาษาทางการ ไม่ต้องมีหัวข้อนำ ตอบเฉพาะเนื้อหา`,
+เขียนเป็นรายการ 2-4 ข้อ โดยเริ่มต้นที่ "1." เสมอ (1. ... 2. ... 3. ...) ใช้ตัวเลขอารบิกเท่านั้น ใช้ภาษาทางการ ไม่ต้องมีหัวข้อนำ ตอบเฉพาะเนื้อหา`,
 
   // 3 qualifications
   (ctx) => `คุณคือผู้เชี่ยวชาญเขียน TOR ภาครัฐไทย ตาม ว.159
@@ -492,11 +552,32 @@ async function checkOllama() {
   } catch(e) {
     ollamaReady = false;
     dot.className = 'err';
-    txt.textContent = 'Ollama ไม่ได้รัน';
+    txt.textContent = 'Backend ไม่ได้รัน';
     warn.classList.add('show');
     const testEl = document.getElementById('setup-test-result');
-    if (testEl) testEl.innerHTML = `<span style="color:#ef9a9a">❌ ไม่พบ Ollama — กรุณาติดตั้งตามขั้นตอนข้างต้น</span>`;
+    if (testEl) testEl.innerHTML = `<span style="color:#ef9a9a">❌ ไม่พบ Backend — กรุณาตรวจสอบการตั้งค่า</span>`;
   }
+}
+
+function sanitizeText(text) {
+  // แปลงเลขไทย → อารบิก
+  const thaiDigits = ['๐','๑','๒','๓','๔','๕','๖','๗','๘','๙'];
+  thaiDigits.forEach((d, i) => { text = text.replaceAll(d, String(i)); });
+  // ลบอักขระจีน/ญี่ปุ่น/เกาหลี
+  text = text.replace(/[一-鿿぀-ヿ가-힯]/g, '');
+  return text;
+}
+
+function removeEnglishOnlyLines(text) {
+  // ลบบรรทัดที่เป็นภาษาอังกฤษล้วน (ไม่มีภาษาไทยเลย) และมีตัวอักษรอังกฤษมากกว่า 10 ตัว
+  // เพื่อไม่ให้ลบ spec เช่น "SSD 512 GB" ที่มีแค่ตัวเลขกับอังกฤษสั้นๆ
+  return text.split('\n').filter(line => {
+    const hasThai = /[฀-๿]/.test(line);
+    const engCount = (line.match(/[a-zA-Z]/g) || []).length;
+    // ถ้าไม่มีภาษาไทยเลย และมีอังกฤษมากกว่า 12 ตัว ถือว่าเป็น paragraph อังกฤษล้วน
+    if (!hasThai && engCount > 12) return false;
+    return true;
+  }).join('\n');
 }
 
 async function streamOllama(prompt, onToken, onDone) {
@@ -532,7 +613,11 @@ async function streamOllama(prompt, onToken, onDone) {
       try {
         const j = JSON.parse(line);
         if (j.error) throw new Error(j.error);
-        if (j.response) { full += j.response; onToken(j.response, full); }
+        if (j.response) {
+          const clean = sanitizeText(j.response);
+          full += clean;
+          onToken(clean, full);
+        }
       } catch(e) {
         if (e.message !== 'Unexpected end of JSON input') console.warn('parse:', e.message);
       }
@@ -583,16 +668,23 @@ function bahtText(n) {
 function fmtBudget(v){ return new Intl.NumberFormat('th-TH').format(v); }
 
 function getContext() {
+  const isQuick = currentMode === 'quick';
+  const name    = isQuick
+    ? document.getElementById('quick-name').value.trim()
+    : document.getElementById('project-name').value.trim();
+  const budget  = isQuick
+    ? parseFloat(document.getElementById('quick-budget').value) || 0
+    : parseFloat(document.getElementById('budget').value) || 0;
   return {
-    name:      document.getElementById('project-name').value.trim(),
-    type:      document.getElementById('project-type').value,
-    agency:    document.getElementById('agency').value.trim() || 'หน่วยงาน',
-    budget:    parseFloat(document.getElementById('budget').value)||0,
-    budgetFmt: fmtBudget(parseFloat(document.getElementById('budget').value)||0),
-    budgetText:bahtText(parseFloat(document.getElementById('budget').value)||0),
-    days:      parseInt(document.getElementById('duration').value)||90,
-    criteria:  document.querySelector('input[name="criteria"]:checked').value,
-    desc:      document.getElementById('ai-project-desc').value.trim() || '(ไม่ได้ระบุรายละเอียดเพิ่มเติม)',
+    name,
+    type:       isQuick ? 'ซื้อ' : document.getElementById('project-type').value,
+    agency:     isQuick ? 'หน่วยงาน' : (document.getElementById('agency').value.trim() || 'หน่วยงาน'),
+    budget,
+    budgetFmt:  fmtBudget(budget),
+    budgetText: budget ? bahtText(budget) : 'ตามที่ได้รับจัดสรร',
+    days:       isQuick ? 90 : (parseInt(document.getElementById('duration').value) || 90),
+    criteria:   isQuick ? 'ราคา' : document.querySelector('input[name="criteria"]:checked').value,
+    desc:       document.getElementById('ai-project-desc').value.trim() || '(ไม่ได้ระบุรายละเอียดเพิ่มเติม)',
   };
 }
 
@@ -600,6 +692,48 @@ function getContext() {
 // GENERATE TEMPLATE
 // ══════════════════════════════════════════
 function generateTOR() {
+  if (currentMode === 'quick') {
+    generateTOR_quick();
+  } else {
+    generateTOR_detail();
+  }
+}
+
+function generateTOR_quick() {
+  const desc = document.getElementById('ai-project-desc').value.trim();
+  const quickName = document.getElementById('quick-name').value.trim();
+  const quickBudget = parseFloat(document.getElementById('quick-budget').value) || 0;
+
+  if (!desc) { alert('กรุณาอธิบายโครงการในช่องด้านบน'); return; }
+  if (!quickName) { alert('กรุณากรอกชื่อโครงการ (ย่อ)'); return; }
+  if (!ollamaReady) {
+    alert('ยังไม่ได้เชื่อมต่อกับ Backend — โหมดด่วนต้องใช้ AI\nกรุณาตรวจสอบการเชื่อมต่อที่มุมบนขวา หรือเปลี่ยนเป็นโหมดละเอียด');
+    return;
+  }
+
+  const ctx = {
+    name:       quickName,
+    type:       'ซื้อ',
+    agency:     'หน่วยงาน',
+    budget:     quickBudget,
+    budgetFmt:  fmtBudget(quickBudget),
+    budgetText: quickBudget ? bahtText(quickBudget) : 'ตามที่ได้รับจัดสรร',
+    days:       90,
+    criteria:   'ราคา',
+    desc:       desc,
+  };
+
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('result').style.display = 'none';
+
+  setTimeout(async () => {
+    buildResult(ctx);
+    // auto-generate all sections with AI after a short delay
+    setTimeout(() => generateAllWithAI(), 300);
+  }, 400);
+}
+
+function generateTOR_detail() {
   const ctx = getContext();
   if (!ctx.name) { alert('กรุณากรอกชื่อโครงการ'); return; }
   if (!ctx.budget) { alert('กรุณากรอกวงเงินงบประมาณ'); return; }
@@ -679,7 +813,7 @@ function buildResult(ctx) {
 // AI PER SECTION
 // ══════════════════════════════════════════
 async function generateSection(i) {
-  if (!ollamaReady) { alert('Ollama ยังไม่พร้อม กรุณาตรวจสอบในแท็บ ⚙️'); return; }
+  if (!ollamaReady) { alert('Backend ยังไม่พร้อม กรุณาตรวจสอบในแท็บ ⚙️ ตั้งค่า'); return; }
   const ctx     = getContext();
   const btn     = document.getElementById(`btn-ai-${i}`);
   const ta      = document.getElementById(`ta-${i}`);
@@ -689,7 +823,7 @@ async function generateSection(i) {
   btn.disabled = true;
   btn.classList.add('streaming');
   btn.textContent = '⏳ กำลังเขียน...';
-  think.textContent = 'Typhoon2 กำลังประมวลผล...';
+  think.textContent = 'OpenTyphoon กำลังประมวลผล...';
   ta.value = '';
 
   // open section body
@@ -705,6 +839,8 @@ async function generateSection(i) {
       prompt,
       (token, full) => { ta.value = full; ta.scrollTop = ta.scrollHeight; },
       (full) => {
+        // กรอง paragraph อังกฤษล้วนออกหลัง stream จบ
+        ta.value = removeEnglishOnlyLines(full).trim();
         think.textContent = '✅ เสร็จแล้ว';
         setTimeout(() => think.textContent = '', 2000);
         status.className = 'section-status status-ai';
@@ -722,7 +858,7 @@ async function generateSection(i) {
 }
 
 async function generateAllWithAI() {
-  if (!ollamaReady) { alert('Ollama ยังไม่พร้อม'); return; }
+  if (!ollamaReady) { alert('Backend ยังไม่พร้อม'); return; }
   const btn = document.getElementById('btn-ai-all');
   btn.disabled = true;
   btn.textContent = '⏳ กำลังเขียนทีละข้อ...';
@@ -756,6 +892,61 @@ function copyAll() {
     .then(()=>alert('คัดลอกแล้ว!'))
     .catch(()=>alert('ไม่สามารถคัดลอกได้'));
 }
+async function exportWord() {
+  const btn = document.getElementById('btn-export-docx');
+  const ctx = getContext();
+
+  // รวบรวม 10 ข้อ
+  const sections = TOR_SECTIONS.map((sec, i) => ({
+    num: sec.num,
+    title: sec.title,
+    content: document.getElementById(`ta-${i}`)?.value || '',
+  }));
+
+  btn.textContent = '⏳ กำลังสร้าง...';
+  btn.disabled = true;
+
+  try {
+    const resp = await fetch(`${getBackendURL()}/api/export/docx`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title:        ctx.name,
+        agency:       ctx.agency,
+        budget:       ctx.budgetFmt,
+        project_type: ctx.type,
+        criteria:     ctx.criteria,
+        created_at:   new Date().toLocaleString('th-TH'),
+        sections,
+      }),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      try {
+        const err = JSON.parse(text);
+        alert('เกิดข้อผิดพลาด: ' + (err.detail || resp.status));
+      } catch {
+        alert('เกิดข้อผิดพลาด ' + resp.status + ': ' + text.substring(0, 150));
+      }
+      return;
+    }
+
+    const blob = await resp.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `TOR_${ctx.name}_${new Date().toISOString().slice(0,10)}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('ไม่สามารถสร้างไฟล์ได้: ' + e.message);
+  } finally {
+    btn.textContent = '📄 Word';
+    btn.disabled = false;
+  }
+}
+
 function downloadTXT() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([getAllContent()],{type:'text/plain;charset=utf-8'}));
@@ -776,9 +967,10 @@ TOR_SECTIONS.forEach(s => {
 // AUTO-CHECK on load
 window.addEventListener('load', () => {
   const saved = localStorage.getItem('backend_url');
-  if (saved) document.getElementById('backend-input').value = saved;
-  else document.getElementById('backend-input').value = 'http://localhost:8000';
+  document.getElementById('backend-input').value = saved || window.location.origin;
   setTimeout(checkOllama, 800);
+  // init quick mode (default)
+  setMode('quick');
 });
 </script>
 </body>
