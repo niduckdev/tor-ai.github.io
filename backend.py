@@ -385,39 +385,71 @@ async def analyze_spec(
         raise HTTPException(status_code=500, detail=f"วิเคราะห์ไม่สำเร็จ: {str(e)}")
 
 
+OCR_API_KEY = os.environ.get("TYPHOON_OCR_API_KEY") or API_KEY
+OCR_URL = "https://api.opentyphoon.ai/v1/ocr"
+
+
 def _ocr_pdf_to_text(file_bytes: bytes, filename: str = "document.pdf") -> str:
-    """ดึงข้อความจาก PDF ด้วย Typhoon OCR (ทีละหน้า) — fallback เป็น pypdf หากใช้ OCR ไม่ได้"""
-    import tempfile
+    """ดึงข้อความจาก PDF ด้วย Typhoon OCR REST API โดยตรง (ไม่ต้องพึ่ง poppler) — fallback เป็น pypdf หากเรียก OCR ไม่สำเร็จ"""
+    import requests, json as _json
 
-    tmp_path = None
+    if not OCR_API_KEY:
+        return _extract_text_from_pdf(file_bytes)
+
     try:
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-            tmp.write(file_bytes)
-            tmp_path = tmp.name
-
+        # นับจำนวนหน้าก่อน เพื่อระบุ pages ที่ต้องการ (จำกัดไม่เกิน 30 หน้าแรก กันโควตาเกิน)
         try:
-            from typhoon_ocr import ocr_document
             import pypdf as _pypdf
-
             reader = _pypdf.PdfReader(io.BytesIO(file_bytes))
-            num_pages = len(reader.pages)
-            pages_text = []
-            for page_num in range(1, num_pages + 1):
+            num_pages = min(len(reader.pages), 30)
+        except Exception:
+            num_pages = 30
+        pages = list(range(1, num_pages + 1))
+
+        resp = requests.post(
+            OCR_URL,
+            files={'file': (filename, io.BytesIO(file_bytes), 'application/pdf')},
+            data={
+                'model': 'typhoon-ocr',
+                'task_type': 'default',
+                'max_tokens': '16384',
+                'temperature': '0.1',
+                'top_p': '0.6',
+                'repetition_penalty': '1.2',
+                'pages': _json.dumps(pages),
+            },
+            headers={'Authorization': f'Bearer {OCR_API_KEY}'},
+            timeout=300,
+        )
+
+        if resp.status_code != 200:
+            # OCR ใช้ไม่ได้ — fallback ไปใช้ pypdf อ่านข้อความตรง ๆ
+            fallback = _extract_text_from_pdf(file_bytes)
+            if fallback.strip():
+                return fallback
+            raise HTTPException(status_code=502, detail=f"Typhoon OCR ล้มเหลว ({resp.status_code}): {resp.text[:300]}")
+
+        result = resp.json()
+        extracted_texts = []
+        for page_result in result.get('results', []):
+            if page_result.get('success') and page_result.get('message'):
+                content = page_result['message']['choices'][0]['message']['content']
                 try:
-                    md = ocr_document(pdf_or_image_path=tmp_path, page_num=page_num)
-                    pages_text.append(md or "")
-                except Exception as ocr_err:
-                    pages_text.append(f"[OCR หน้า {page_num} ล้มเหลว: {ocr_err}]")
-            return "\n\n".join(pages_text)
-        except ImportError:
-            # ไม่มี typhoon-ocr ติดตั้ง — fallback ไปใช้ pypdf อ่านข้อความตรง ๆ
-            return _extract_text_from_pdf(file_bytes)
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
+                    parsed = _json.loads(content)
+                    text = parsed.get('natural_text', content)
+                except (ValueError, AttributeError):
+                    text = content
+                extracted_texts.append(text)
+        combined = "\n\n".join(t for t in extracted_texts if t)
+        if combined.strip():
+            return combined
+        # OCR คืนค่าว่าง — fallback
+        return _extract_text_from_pdf(file_bytes)
+    except HTTPException:
+        raise
+    except Exception:
+        # เรียก OCR ไม่สำเร็จ (เช่น เน็ตหลุด/ timeout) — fallback ไปใช้ pypdf
+        return _extract_text_from_pdf(file_bytes)
 
 
 @app.post("/api/audit-tor")

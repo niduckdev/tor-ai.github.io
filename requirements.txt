@@ -4,4 +4,4 @@ openai
 python-docx
 pypdf
 python-multipart
-typhoon-ocr
+requests
