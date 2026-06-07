@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TOR (ว.159) — AI Generator</title>
+<title>AudiToR — AI ผู้ช่วยร่างและตรวจสอบ ToR</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <style>
   .md-result h2 { font-size:1.05rem; color:var(--accent2); margin:18px 0 10px; }
@@ -189,7 +189,7 @@
 
 <header>
   <div>
-    <h1>TOR <span>(ว.159)</span></h1>
+    <h1>Audi<span>ToR</span></h1>
     <p>แอปพลิเคชันทำงานแบบ Local 100% ปลอดภัยต่อข้อมูลความลับจัดซื้อจัดจ้างภาครัฐ</p>
   </div>
   <div class="header-right">
@@ -206,7 +206,6 @@
   <div class="tab active" onclick="switchTab('gen')">📝 เจนโครงร่าง 10 หัวข้อ (ว.159)</div>
   <div class="tab" onclick="switchTab('analyze')">🔍 วิเคราะห์ TOR/สเปคกลาง</div>
   <div class="tab" onclick="switchTab('audit')">🧐 ตรวจสอบ ToR จาก PDF</div>
-  <div class="tab" onclick="switchTab('setup')">⚙️ ตั้งค่า</div>
   <div class="tab" onclick="switchTab('info')">📋 ข้อมูล ว.159</div>
 </div>
 
@@ -219,7 +218,7 @@
   <div id="setup-warn" class="setup-panel">
     <div class="setup-title">⚠️ ยังไม่ได้เชื่อมต่อ Backend — ฟีเจอร์ AI ช่วยเขียนยังใช้ไม่ได้</div>
     <div class="setup-steps">
-      ยังสามารถใช้งานส่วน Generate โครงร่างได้ตามปกติ หากต้องการใช้ AI ช่วยเขียนแต่ละข้อ กรุณาไปที่แท็บ <strong>⚙️ ตั้งค่า</strong>
+      ยังสามารถใช้งานส่วน Generate โครงร่างได้ตามปกติ หากต้องการใช้ AI ช่วยเขียนแต่ละข้อ กรุณาตรวจสอบการเชื่อมต่อ Backend ก่อนใช้งาน
     </div>
   </div>
 
@@ -335,62 +334,6 @@
 
     <div class="footer-note">
       ⚠️ <strong>หมายเหตุ:</strong> โครงร่างนี้เป็นแนวทางเบื้องต้นเท่านั้น เจ้าหน้าที่ผู้รับผิดชอบต้องพิจารณา ตรวจสอบ และแก้ไขให้ถูกต้องครบถ้วนตามบริบทโครงการจริงก่อนนำไปใช้งาน
-    </div>
-  </div>
-</div>
-
-<!-- ══ PAGE: SETUP ══ -->
-<div id="page-setup" class="page">
-  <div class="card">
-    <div class="card-title">⚙️ ติดตั้งและตั้งค่า Backend + OpenTyphoon</div>
-    <div class="card-sub">ทำครั้งเดียว จากนั้นใช้งานได้ตลอด</div>
-
-    <div style="display:flex;flex-direction:column;gap:20px;">
-
-      <div style="background:var(--surface2);border-radius:8px;padding:16px;">
-        <div style="font-weight:600;margin-bottom:10px;">ขั้นตอนที่ 1 — ติดตั้ง dependencies</div>
-        <div style="font-size:0.85rem;color:var(--muted);line-height:2;">
-          เปิด Command Prompt แล้วรัน:<br>
-          <code>pip install fastapi uvicorn openai</code>
-        </div>
-      </div>
-
-      <div style="background:var(--surface2);border-radius:8px;padding:16px;">
-        <div style="font-weight:600;margin-bottom:10px;">ขั้นตอนที่ 2 — รับ API Key ฟรี</div>
-        <div style="font-size:0.85rem;color:var(--muted);line-height:2;">
-          สมัครที่ <a href="https://opentyphoon.ai" target="_blank" style="color:#64b5f6;">https://opentyphoon.ai</a> → API Keys → Create<br>
-          copy key ที่ได้ (ขึ้นต้นด้วย <code>sk-</code>)
-        </div>
-      </div>
-
-      <div style="background:var(--surface2);border-radius:8px;padding:16px;">
-        <div style="font-weight:600;margin-bottom:10px;">ขั้นตอนที่ 3 — รัน Backend</div>
-        <div style="font-size:0.85rem;color:var(--muted);line-height:2;">
-          เปิด Command Prompt แล้วรัน:<br>
-          <code>set TYPHOON_API_KEY=sk-xxxx</code><br>
-          <code>python {path}\backend.py</code><br>
-          จะเห็น: <em>🚀 TOR AI Backend รันที่ http://localhost:8000</em>
-        </div>
-      </div>
-
-      <div style="background:var(--surface2);border-radius:8px;padding:16px;">
-        <div style="font-weight:600;margin-bottom:10px;">ขั้นตอนที่ 4 — ทดสอบ</div>
-        <div style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">ตรวจสอบว่า backend รันอยู่และ API key ถูกต้อง</div>
-        <button class="btn-primary" style="margin-top:0;" onclick="checkOllama()">🔄 ตรวจสอบการเชื่อมต่อ</button>
-        <div id="setup-test-result" style="margin-top:12px;font-size:0.85rem;"></div>
-      </div>
-
-      <div style="background:var(--surface2);border-radius:8px;padding:16px;">
-        <div style="font-weight:600;margin-bottom:8px;">ข้อมูล Model</div>
-        <table style="font-size:0.82rem;color:var(--muted);line-height:2;width:100%;">
-          <tr><td style="width:180px;">Model</td><td>typhoon-v2-8b-instruct</td></tr>
-          <tr><td>Provider</td><td>OpenTyphoon (SCB10X)</td></tr>
-          <tr><td>RAM</td><td>ไม่ต้องการ — รันบน cloud</td></tr>
-          <tr><td>ภาษา</td><td>ไทย + อังกฤษ</td></tr>
-          <tr><td>ค่าใช้จ่าย</td><td>ฟรี (free tier)</td></tr>
-          <tr><td>Backend docs</td><td><a href="http://localhost:8000/docs" target="_blank" style="color:#64b5f6;">http://localhost:8000/docs</a></td></tr>
-        </table>
-      </div>
     </div>
   </div>
 </div>
@@ -694,7 +637,7 @@ async function streamOllama(prompt, onToken, onDone) {
 // HELPERS
 // ══════════════════════════════════════════
 function switchTab(t) {
-  const tabs = ['gen','analyze','audit','setup','info'];
+  const tabs = ['gen','analyze','audit','info'];
   tabs.forEach((id,i) => {
     document.querySelectorAll('.tab')[i].classList.toggle('active', id===t);
     document.getElementById('page-'+id).classList.toggle('active', id===t);
