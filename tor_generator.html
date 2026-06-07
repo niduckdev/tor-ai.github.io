@@ -4,7 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TOR (ว.159) — AI Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <style>
+  .md-result h2 { font-size:1.05rem; color:var(--accent2); margin:18px 0 10px; }
+  .md-result h1 { font-size:1.15rem; color:var(--accent2); margin:18px 0 10px; }
+  .md-result p { margin:8px 0; line-height:1.7; }
+  .md-result ul, .md-result ol { margin:8px 0 8px 22px; line-height:1.8; }
+  .md-result strong { color:var(--text); }
+  .md-result table { width:100%; border-collapse:collapse; margin:12px 0; font-size:0.88rem; }
+  .md-result th { padding:10px; text-align:left; border:1px solid var(--border); background:var(--surface2); color:var(--text); }
+  .md-result td { padding:10px; border:1px solid var(--border); vertical-align:top; }
+  .md-result tr:nth-child(even) td { background:rgba(255,255,255,0.02); }
   :root {
     --bg: #111318; --surface: #1a1d24; --surface2: #22262f;
     --border: #2e3340; --accent: #e53935; --accent2: #ff6659;
@@ -85,6 +95,8 @@
   .btn-primary { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:12px 24px; font-size:0.95rem; font-family:inherit; font-weight:600; cursor:pointer; transition:background 0.2s,transform 0.1s; margin-top:22px; }
   .btn-primary:hover { background:var(--accent2); }
   .btn-primary:disabled { background:#555; cursor:not-allowed; }
+  .btn { background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:9px 18px; font-size:0.85rem; font-family:inherit; font-weight:600; cursor:pointer; transition:background 0.2s; }
+  .btn:hover { background:var(--border); }
   .btn-outline { background:transparent; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 16px; font-size:0.85rem; font-family:inherit; cursor:pointer; transition:background 0.2s; }
   .btn-outline:hover { background:var(--surface2); }
 
@@ -192,6 +204,8 @@
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('gen')">📝 เจนโครงร่าง 10 หัวข้อ (ว.159)</div>
+  <div class="tab" onclick="switchTab('analyze')">🔍 วิเคราะห์ TOR/สเปคกลาง</div>
+  <div class="tab" onclick="switchTab('audit')">🧐 ตรวจสอบ ToR จาก PDF</div>
   <div class="tab" onclick="switchTab('setup')">⚙️ ตั้งค่า</div>
   <div class="tab" onclick="switchTab('info')">📋 ข้อมูล ว.159</div>
 </div>
@@ -354,7 +368,7 @@
         <div style="font-size:0.85rem;color:var(--muted);line-height:2;">
           เปิด Command Prompt แล้วรัน:<br>
           <code>set TYPHOON_API_KEY=sk-xxxx</code><br>
-          <code>python D:\TOR_AI\Program\backend.py</code><br>
+          <code>python {path}\backend.py</code><br>
           จะเห็น: <em>🚀 TOR AI Backend รันที่ http://localhost:8000</em>
         </div>
       </div>
@@ -378,6 +392,57 @@
         </table>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ══ PAGE: ANALYZE SPEC ══ -->
+<div id="page-analyze" class="page">
+  <div class="card">
+    <div class="card-title">🔍 ระบบ AI วิเคราะห์ TOR และสร้างสเปคกลาง</div>
+    <div class="card-sub">อัปโหลดเอกสารสเปค/ใบเสนอราคาจากหลายบริษัท ระบบจะเซนเซอร์ข้อมูลติดต่อก่อนส่งให้ AI แล้วสรุปเป็นร่างสเปคกลางที่ไม่ล็อกยี่ห้อ</div>
+
+    <div style="margin-top:14px;">
+      <label style="font-size:0.85rem;color:var(--muted);display:block;margin-bottom:6px;">ระบุลักษณะงานหรือวัตถุประสงค์ที่ต้องการนำไปใช้:</label>
+      <textarea id="analyze-job-desc" rows="4" placeholder="เช่น ต้องการระบบคอมพิวเตอร์สำหรับการเรียนการสอนห้องปฏิบัติการคอมพิวเตอร์ จำนวน 40 เครื่อง..."></textarea>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;">
+
+    <div>
+      <label style="font-size:0.85rem;color:var(--muted);display:block;margin-bottom:6px;">📂 อัปโหลดเอกสารสเปค/ใบเสนอราคาจากบริษัทต่างๆ (เพิ่มไฟล์ทีละไฟล์ได้ แม้อยู่คนละโฟลเดอร์ — อย่างน้อย 2 บริษัท, PDF เท่านั้น)</label>
+      <input type="file" id="analyze-file-picker" accept="application/pdf" style="display:none;">
+      <button type="button" class="btn" onclick="document.getElementById('analyze-file-picker').click()">➕ เพิ่มไฟล์ PDF</button>
+      <div id="analyze-file-list" style="font-size:0.82rem;color:var(--muted);margin-top:10px;"></div>
+    </div>
+
+    <div style="margin-top:18px;">
+      <button class="btn btn-primary" onclick="analyzeSpec()" id="analyze-btn">🚀 เริ่มวิเคราะห์และสรุปสเปคกลาง</button>
+    </div>
+
+    <div id="analyze-status" style="margin-top:14px;font-size:0.88rem;"></div>
+    <div id="analyze-result" class="md-result" style="margin-top:14px;font-size:0.92rem;"></div>
+  </div>
+</div>
+
+<!-- ══ PAGE: AUDIT TOR ══ -->
+<div id="page-audit" class="page">
+  <div class="card">
+    <div class="card-title">🧐 ระบบตรวจสอบ ToR จาก PDF</div>
+    <div class="card-sub">อัปโหลดไฟล์ ToR (PDF) — ระบบจะดึงข้อความด้วย Typhoon OCR แล้วตรวจ 3 ด้าน: ความครบถ้วน 10 หัวข้อตาม ว.159, ความสอดคล้องภายในเอกสาร, และความเป็นกลาง/การล็อคสเปค</div>
+
+    <div style="margin-top:14px;">
+      <label style="font-size:0.85rem;color:var(--muted);display:block;margin-bottom:6px;">📄 อัปโหลดไฟล์ ToR (PDF เท่านั้น — 1 ไฟล์)</label>
+      <input type="file" id="audit-file-picker" accept="application/pdf" style="display:none;">
+      <button type="button" class="btn" onclick="document.getElementById('audit-file-picker').click()">📎 เลือกไฟล์ PDF</button>
+      <div id="audit-file-name" style="font-size:0.82rem;color:var(--muted);margin-top:8px;"></div>
+    </div>
+
+    <div style="margin-top:18px;">
+      <button class="btn btn-primary" onclick="auditTor()" id="audit-btn">🚀 เริ่มตรวจสอบ ToR</button>
+    </div>
+
+    <div id="audit-status" style="margin-top:14px;font-size:0.88rem;"></div>
+    <div id="audit-result" class="md-result" style="margin-top:14px;font-size:0.92rem;"></div>
   </div>
 </div>
 
@@ -629,7 +694,7 @@ async function streamOllama(prompt, onToken, onDone) {
 // HELPERS
 // ══════════════════════════════════════════
 function switchTab(t) {
-  const tabs = ['gen','setup','info'];
+  const tabs = ['gen','analyze','audit','setup','info'];
   tabs.forEach((id,i) => {
     document.querySelectorAll('.tab')[i].classList.toggle('active', id===t);
     document.getElementById('page-'+id).classList.toggle('active', id===t);
@@ -972,6 +1037,155 @@ window.addEventListener('load', () => {
   // init quick mode (default)
   setMode('quick');
 });
+// ══════════════════════════════════════════
+// ANALYZE SPEC TAB
+// ══════════════════════════════════════════
+let analyzeFiles = []; // accumulated File objects (added one-by-one, can be from different folders)
+
+function renderAnalyzeFileList() {
+  const list = document.getElementById('analyze-file-list');
+  if (analyzeFiles.length === 0) { list.innerHTML = ''; return; }
+  let html = `📁 อัปโหลดเอกสารเข้ามาทั้งหมด ${analyzeFiles.length} ไฟล์<br>`;
+  analyzeFiles.forEach((f, i) => {
+    html += `• บริษัทที่ ${i+1}: ${f.name} <span style="color:var(--accent2);cursor:pointer;" onclick="removeAnalyzeFile(${i})">✕ ลบ</span><br>`;
+  });
+  list.innerHTML = html;
+}
+
+function removeAnalyzeFile(idx) {
+  analyzeFiles.splice(idx, 1);
+  renderAnalyzeFileList();
+}
+
+const analyzeFilePicker = document.getElementById('analyze-file-picker');
+if (analyzeFilePicker) {
+  analyzeFilePicker.addEventListener('change', () => {
+    const picked = analyzeFilePicker.files;
+    if (picked && picked.length > 0) {
+      analyzeFiles.push(picked[0]);
+      renderAnalyzeFileList();
+    }
+    analyzeFilePicker.value = ''; // reset so same file can be re-picked if needed
+  });
+}
+
+async function analyzeSpec() {
+  const jobDesc = document.getElementById('analyze-job-desc').value.trim();
+  const files = analyzeFiles;
+  const statusEl = document.getElementById('analyze-status');
+  const resultEl = document.getElementById('analyze-result');
+  const btn = document.getElementById('analyze-btn');
+
+  resultEl.innerHTML = '';
+  if (!jobDesc) {
+    statusEl.innerHTML = '⚠️ กรุณากรอกลักษณะงานหรือวัตถุประสงค์ที่ต้องการก่อน';
+    return;
+  }
+  if (!files || files.length < 2) {
+    statusEl.innerHTML = '⚠️ กรุณาอัปโหลดเอกสารอย่างน้อย 2 บริษัท เพื่อให้ระบบหาจุดร่วมของสเปคกลางได้';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('job_description', jobDesc);
+  for (let i = 0; i < files.length; i++) formData.append('files', files[i]);
+
+  btn.disabled = true;
+  statusEl.innerHTML = `⏳ กำลังสแกนและเซนเซอร์ข้อมูลความลับจากทั้ง ${files.length} บริษัท แล้ววิเคราะห์ด้วย AI... (อาจใช้เวลาสักครู่)`;
+
+  try {
+    const resp = await fetch(getBackendURL() + '/api/analyze-spec', {
+      method: 'POST',
+      body: formData,
+    });
+    const text = await resp.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = null; }
+
+    if (!resp.ok) {
+      const msg = (data && data.detail) ? data.detail : text;
+      statusEl.innerHTML = `🚨 เกิดข้อผิดพลาด: ${msg}`;
+      return;
+    }
+    statusEl.innerHTML = '✨ AI วิเคราะห์และจัดทำร่างสเปคกลางสำเร็จเรียบร้อย!';
+    const raw = data.result || '';
+    if (window.marked) {
+      resultEl.innerHTML = marked.parse(raw);
+    } else {
+      resultEl.textContent = raw;
+    }
+  } catch (e) {
+    statusEl.innerHTML = `🚨 เชื่อมต่อ Backend ไม่ได้: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ══════════════════════════════════════════
+// AUDIT TOR TAB
+// ══════════════════════════════════════════
+let auditFile = null;
+
+const auditFilePicker = document.getElementById('audit-file-picker');
+if (auditFilePicker) {
+  auditFilePicker.addEventListener('change', () => {
+    const picked = auditFilePicker.files;
+    const nameEl = document.getElementById('audit-file-name');
+    if (picked && picked.length > 0) {
+      auditFile = picked[0];
+      nameEl.innerHTML = `📄 ไฟล์ที่เลือก: ${auditFile.name}`;
+    } else {
+      auditFile = null;
+      nameEl.innerHTML = '';
+    }
+  });
+}
+
+async function auditTor() {
+  const statusEl = document.getElementById('audit-status');
+  const resultEl = document.getElementById('audit-result');
+  const btn = document.getElementById('audit-btn');
+
+  resultEl.innerHTML = '';
+  if (!auditFile) {
+    statusEl.innerHTML = '⚠️ กรุณาเลือกไฟล์ ToR (PDF) ก่อน';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', auditFile);
+
+  btn.disabled = true;
+  statusEl.innerHTML = '⏳ กำลังดึงข้อความด้วย Typhoon OCR และตรวจสอบ ToR ตามมาตรฐาน ว.159 ... (อาจใช้เวลาสักครู่ขึ้นอยู่กับจำนวนหน้า)';
+
+  try {
+    const resp = await fetch(getBackendURL() + '/api/audit-tor', {
+      method: 'POST',
+      body: formData,
+    });
+    const text = await resp.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = null; }
+
+    if (!resp.ok) {
+      const msg = (data && data.detail) ? data.detail : text;
+      statusEl.innerHTML = `🚨 เกิดข้อผิดพลาด: ${msg}`;
+      return;
+    }
+    statusEl.innerHTML = `✨ ตรวจสอบสำเร็จ! (ดึงข้อความได้ ${data.extracted_chars || 0} ตัวอักษรจาก ${data.filename || 'ไฟล์'})`;
+    const raw = data.result || '';
+    if (window.marked) {
+      resultEl.innerHTML = marked.parse(raw);
+    } else {
+      resultEl.textContent = raw;
+    }
+  } catch (e) {
+    statusEl.innerHTML = `🚨 เชื่อมต่อ Backend ไม่ได้: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 </script>
 </body>
 </html>

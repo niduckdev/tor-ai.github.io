@@ -4,12 +4,12 @@ TOR AI — FastAPI Backend
 รัน: python backend.py
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 from typing import List
-import os, json, io
+import os, json, io, re
 from openai import OpenAI
 
 # ── Config ──────────────────────────────────────────────────────
@@ -292,6 +292,224 @@ def generate_simple(req: GenerateRequest):
         return {"response": resp.choices[0].message.content}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _extract_text_from_pdf(file_bytes: bytes) -> str:
+    """อ่านข้อความจากไฟล์ PDF (bytes) ด้วย pypdf"""
+    try:
+        import pypdf
+    except ImportError:
+        raise HTTPException(status_code=500, detail="กรุณาติดตั้ง pypdf ก่อน: pip install pypdf")
+    reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() or ""
+    return text
+
+
+def _auto_censor_text(text: str) -> str:
+    """เซนเซอร์ข้อมูลติดต่อ (เบอร์โทร/อีเมล/เว็บไซต์) อัตโนมัติก่อนส่งให้ AI"""
+    if not text:
+        return ""
+    text = re.sub(r'\b\d{2,3}-\d{3}-\d{4}\b|\b\d{2,3}-\d{4}-\d{4}\b|\b\d{9,10}\b', "[PHONE_NUMBER_HIDDEN]", text)
+    text = re.sub(r'[\w\.-]+@[\w\.-]+\.\w+', "[EMAIL_HIDDEN]", text)
+    text = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', "[WEBSITE_HIDDEN]", text)
+    return text
+
+
+@app.post("/api/analyze-spec")
+async def analyze_spec(
+    job_description: str = Form(...),
+    files: List[UploadFile] = File(...),
+):
+    """วิเคราะห์เอกสารสเปค/ใบเสนอราคาจากหลายบริษัท แล้วสรุปเป็นร่างสเปคกลาง (ไม่ล็อกยี่ห้อ)"""
+    if API_KEY == "YOUR_API_KEY_HERE" or not API_KEY:
+        raise HTTPException(status_code=401, detail="ยังไม่ได้ตั้ง TYPHOON_API_KEY")
+    if not job_description.strip():
+        raise HTTPException(status_code=400, detail="กรุณาระบุลักษณะงานหรือวัตถุประสงค์ที่ต้องการ")
+    if len(files) < 2:
+        raise HTTPException(status_code=400, detail="กรุณาอัปโหลดเอกสารอย่างน้อย 2 บริษัท เพื่อให้ระบบหาจุดร่วมของสเปคกลางได้")
+
+    try:
+        all_companies_data_prompt = ""
+        company_names = []
+        for idx, f in enumerate(files):
+            company_label = f"[COMPANY_{idx+1}]"
+            company_names.append(f.filename or company_label)
+            raw_bytes = await f.read()
+            raw_text = _extract_text_from_pdf(raw_bytes)
+            clean_text = _auto_censor_text(raw_text)
+            all_companies_data_prompt += f"\n--- ข้อมูลสเปคของ {company_label} ---\n"
+            all_companies_data_prompt += clean_text[:5000] + "\n"
+
+        prompt = f"""คุณคือผู้เชี่ยวชาญด้านการตรวจรับและจัดทำคุณลักษณะเฉพาะ (TOR Specialist)
+งานของคุณคือวิเคราะห์สเปคจากข้อเสนอที่ได้รับ ({len(files)} บริษัท) แล้วสรุปเป็น 'ร่างสเปคกลาง' ที่ถูกต้องตามหลักกฎหมายจัดซื้อจัดจ้าง คือ "ห้ามระบุชื่อยี่ห้อหรือรุ่นสินค้าเด็ดขาด" แต่ให้ใช้เกณฑ์ทางเทคนิคที่ทุกบริษัทสามารถหาของมาสู้กันได้
+
+[ลักษณะงานที่ผู้ใช้ต้องการ]:
+{job_description}
+
+[ข้อมูลเอกสารสเปคของทุกบริษัท]:
+{all_companies_data_prompt}
+
+กรุณาตอบกลับเป็นภาษาไทย โดยใช้รูปแบบ Markdown ที่กระชับ เป็นข้อๆ และเข้าใจง่ายที่สุด ดังนี้:
+
+1. ## 📊 ตารางสรุปเปรียบเทียบสเปค (ทำเป็นตารางสั้นๆ สรุปเฉพาะจุดสำคัญ)
+
+2. ## 📋 ร่างสเปคกลาง (ข้อกำหนดขั้นต่ำที่โปร่งใสและแข่งขันได้จริง)
+ห้ามระบุคำว่า Intel, AMD, NVIDIA, GeForce หรือชื่อยี่ห้อ/รุ่นใดๆ โดยเด็ดขาด ให้ใช้คำอธิบายเชิงคุณลักษณะแทน เช่น
+- หน่วยประมวลผลกลาง: ระบุจำนวนคอร์/เธรด และความเร็วสัญญาณนาฬิกาขั้นต่ำ
+- หน่วยประมวลผลกราฟิก: ระบุประเภท (รวม/แยก) และหน่วยความจำขั้นต่ำ
+- รายการอื่นๆ ให้ระบุค่าขั้นต่ำที่อย่างน้อย 3 รายผ่านเกณฑ์
+
+3. ## 💡 ความเห็นกรรมการ (สรุปสั้น 3 บรรทัด)
+- สเปคกลางนี้พอมั้ยกับงาน
+- จุดที่ควรระวังหรือควร upgrade เพิ่มเพื่อความคุ้มค่า (สรุปเป็นข้อสั้นๆ ห้ามยาว)
+"""
+        resp = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": "คุณคือผู้เชี่ยวชาญด้านการตรวจรับและจัดทำคุณลักษณะเฉพาะ (TOR Specialist) ของหน่วยงานราชการไทย ตอบเป็นภาษาไทยเท่านั้น"},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.6,
+            max_tokens=3000,
+            stream=False,
+        )
+        return {
+            "result": resp.choices[0].message.content,
+            "companies": company_names,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"วิเคราะห์ไม่สำเร็จ: {str(e)}")
+
+
+def _ocr_pdf_to_text(file_bytes: bytes, filename: str = "document.pdf") -> str:
+    """ดึงข้อความจาก PDF ด้วย Typhoon OCR (ทีละหน้า) — fallback เป็น pypdf หากใช้ OCR ไม่ได้"""
+    import tempfile
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(file_bytes)
+            tmp_path = tmp.name
+
+        try:
+            from typhoon_ocr import ocr_document
+            import pypdf as _pypdf
+
+            reader = _pypdf.PdfReader(io.BytesIO(file_bytes))
+            num_pages = len(reader.pages)
+            pages_text = []
+            for page_num in range(1, num_pages + 1):
+                try:
+                    md = ocr_document(pdf_or_image_path=tmp_path, page_num=page_num)
+                    pages_text.append(md or "")
+                except Exception as ocr_err:
+                    pages_text.append(f"[OCR หน้า {page_num} ล้มเหลว: {ocr_err}]")
+            return "\n\n".join(pages_text)
+        except ImportError:
+            # ไม่มี typhoon-ocr ติดตั้ง — fallback ไปใช้ pypdf อ่านข้อความตรง ๆ
+            return _extract_text_from_pdf(file_bytes)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+
+@app.post("/api/audit-tor")
+async def audit_tor(file: UploadFile = File(...)):
+    """ตรวจสอบความครบถ้วนและความสอดคล้องของเอกสาร ToR (PDF) ตามมาตรฐาน ว.159"""
+    if API_KEY == "YOUR_API_KEY_HERE" or not API_KEY:
+        raise HTTPException(status_code=401, detail="ยังไม่ได้ตั้ง TYPHOON_API_KEY")
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="กรุณาอัปโหลดไฟล์ PDF เท่านั้น")
+
+    try:
+        raw_bytes = await file.read()
+        if not raw_bytes:
+            raise HTTPException(status_code=400, detail="ไฟล์ว่างเปล่า อ่านเนื้อหาไม่ได้")
+
+        doc_text = _ocr_pdf_to_text(raw_bytes, file.filename)
+        if not doc_text.strip():
+            raise HTTPException(status_code=422, detail="ไม่สามารถดึงข้อความจากไฟล์ PDF ได้ — ไฟล์อาจเสียหายหรือเป็นภาพคุณภาพต่ำ")
+
+        # จำกัดความยาวข้อความที่ส่งให้ AI เพื่อไม่ให้เกินโควตา
+        doc_text_for_ai = doc_text[:18000]
+
+        prompt = f"""คุณคือผู้ช่วย screen เบื้องต้น (decision support) สำหรับตรวจร่างขอบเขตของงาน (ToR) งานจัดซื้อจัดจ้างภาครัฐไทย
+อ้างอิงมาตรฐานหนังสือเวียน กค (กวจ) 0405.4/ว 159 ลงวันที่ 20 มีนาคม 2566 ซึ่งกำหนดว่า ToR ต้องมีหัวข้อมาตรฐานครบ 10 ข้อ ได้แก่
+1. ความเป็นมา/เหตุผลความจำเป็น
+2. วัตถุประสงค์
+3. คุณสมบัติผู้เสนอราคา/ผู้ยื่นข้อเสนอ
+4. แบบรูปรายการ/คุณลักษณะเฉพาะของพัสดุที่จะจัดซื้อจัดจ้าง
+5. ระยะเวลาดำเนินการ
+6. ระยะเวลาส่งมอบ/สถานที่ส่งมอบ
+7. วงเงินงบประมาณ/ราคากลาง
+8. หลักเกณฑ์การพิจารณาคัดเลือกข้อเสนอ
+9. การรับประกัน/บำรุงรักษา (ถ้ามี)
+10. หน่วยงานที่รับผิดชอบ/ผู้ติดต่อ
+
+**บทบาทสำคัญ**: คุณเป็นผู้ช่วย screen เบื้องต้นเท่านั้น ไม่ใช่ผู้ตัดสินอนุมัติแทนเจ้าหน้าที่ ทุกข้อที่แจ้งเตือนต้องมีเหตุผลกำกับ ห้ามฟันธงเด็ดขาด ใช้ถ้อยคำเชิงเสนอแนะ เช่น "ควรพิจารณา…", "เข้าข่ายอาจขัด…" และเรื่องที่มีผลทางกฎหมาย (เช่น ล็อคสเปค) ต้องให้เจ้าหน้าที่เป็นผู้ยืนยันเสมอ
+
+กรุณาตรวจเอกสาร ToR ต่อไปนี้ใน 3 ด้าน:
+
+**ด้าน 1 — ความครบถ้วนของหัวข้อ**: ตรวจว่ามีหัวข้อมาตรฐานครบทั้ง 10 ข้อหรือไม่ ข้อใดขาดหรือมีแต่ไม่สมบูรณ์ ให้ระบุสถานะ "มี / ไม่มี / มีแต่ไม่สมบูรณ์" พร้อมอ้างอิงข้อความในเอกสาร (ถ้ามี)
+
+**ด้าน 2 — ความสอดคล้องภายในเอกสาร**: ตรวจความสอดคล้องของตัวเลขกับคำอ่าน (เช่น "4,000 บาท (ห้าพันบาท)" คือผิด เพราะ 4,000 ต้องอ่านว่า "สี่พันบาท"), ความสอดคล้องของวันที่/ระยะเวลา, งบประมาณรวมกับรายการย่อย, การอ้างอิงข้ามข้อ
+
+**ด้าน 3 — ความถูกต้องตามระเบียบ/ความเป็นกลาง**: ตรวจการล็อคสเปค เช่น ระบุยี่ห้อ/รุ่น/Part No. เฉพาะเจาะจงโดยไม่มีคำว่า "หรือเทียบเท่า", กำหนดคุณลักษณะที่ชี้ไปยังผู้ขายรายเดียว (ในสเปคหนึ่งควรมีผู้ผลิต/ผู้ขายที่ผ่านเกณฑ์ได้ไม่น้อยกว่า 3 ราย), เงื่อนไขคุณสมบัติที่กีดกันการแข่งขันเกินจำเป็น — เมื่อพบให้เสนอแนวทางปรับเป็นกลาง (ระบุสมรรถนะเชิงหน้าที่ + เติม "หรือเทียบเท่า") แต่ต้องระบุชัดว่าให้เจ้าหน้าที่ยืนยัน
+
+ตอบกลับเป็นภาษาไทย รูปแบบ Markdown ตามโครงสร้างนี้เท่านั้น:
+
+# ผลประเมิน ToR
+
+## สรุป
+- ความครบถ้วน: [n/10] หัวข้อ
+- จุดที่พบ: ผิดระเบียบ [n] · ควรแก้ไข [n] · ข้อเสนอแนะ [n]
+
+## ตารางตรวจความครบถ้วน 10 หัวข้อ (ว.159)
+| ข้อ | หัวข้อมาตรฐาน | สถานะ | หมายเหตุ |
+|---|---|---|---|
+(แสดงครบทั้ง 10 แถว)
+
+## รายการที่ควรตรวจสอบเพิ่มเติม
+สำหรับแต่ละจุดที่พบ ให้ระบุ:
+- ระดับ: 🔴 ผิดระเบียบ / 🟡 ควรแก้ไข / 🔵 ข้อเสนอแนะ
+- ตำแหน่ง: [ข้อ/หัวข้อในเอกสาร]
+- ปัญหา: [อธิบายสั้นๆ]
+- เหตุผล/อ้างอิง: [อ้างอิงระเบียบที่เกี่ยวข้อง — ถ้าไม่แน่ใจให้บอกว่าไม่แน่ใจ]
+- ข้อเสนอแก้ไข: [แนวทาง]
+- ความมั่นใจ: [สูง / ปานกลาง / ต่ำ]
+
+## คำเตือน
+ปิดท้ายด้วยข้อความว่า: ผลนี้เป็นการ screen เบื้องต้นโดย AI การตัดสินใจขั้นสุดท้ายเป็นของเจ้าหน้าที่ผู้รับผิดชอบ
+
+[เนื้อหาเอกสาร ToR ที่ดึงได้]:
+{doc_text_for_ai}
+"""
+        resp = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": "คุณคือผู้ช่วย screen เบื้องต้นสำหรับตรวจร่างขอบเขตของงาน (ToR) ของหน่วยงานราชการไทย ตามมาตรฐาน ว.159 ตอบเป็นภาษาไทยเท่านั้น และห้ามฟันธงแทนเจ้าหน้าที่ในเรื่องที่มีผลทางกฎหมาย"},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.4,
+            max_tokens=4000,
+            stream=False,
+        )
+        return {
+            "result": resp.choices[0].message.content,
+            "filename": file.filename,
+            "extracted_chars": len(doc_text),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ตรวจสอบไม่สำเร็จ: {str(e)}")
 
 
 # ── Run ──────────────────────────────────────────────────────────
